@@ -1079,10 +1079,12 @@ namespace lc3kit::vm
             /**
              * @brief Set the load origin and program counter.
              *
+             * Not allowed while VM is running unless its `STEP` mode.
+             * 
              * @param o New origin address.
              */
             void set_origin(std_word_t o) {
-                if (m_running) {
+                if (m_running || is_debug()) {
                     set_error(error_type::ILLEGAL_STATE);
                     return;
                 }

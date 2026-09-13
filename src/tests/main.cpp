@@ -207,7 +207,7 @@ TEST_CASE("lc3kit-ext instructions") {
         vm_load(vm, binary);
         vm_run(vm);
 
-        // NOTE: I did not use HALT, as interrupts alter certain registers (R6) 
+        // stupid note removed
         CHECK(vm.reg_read(vm::registers::R1) == 16); // SHL imm: 4 << 2
         CHECK(vm.reg_read(vm::registers::R2) == 8);  // SHR imm: 16 >> 1
         CHECK(vm.reg_read(vm::registers::R3) == 32); // MUL reg: 4 * 8

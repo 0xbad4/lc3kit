@@ -217,8 +217,18 @@ namespace lc3kit::lasm {
                     report(error_type::EXPECTED_DIRECTIVE);
                 }
                 else {
-                    auto item = DIRECTIVES.find(value);
+                    // NOTE: LC3 is case insensitive.
+                    // Convert the token to uppercase only for directive lookup.
+                    // This is used exclusively to check whether the token is a DIRECTIVE;
+                    // the original token itself is not modified.
+                    str_t upper = value;
+                    // to uppercase
+                    std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
 
+                    // lookup
+                    auto item = DIRECTIVES.find(upper);
+
+                    // verify
                     if (item != DIRECTIVES.end()) {
                         add_token(item->second, value);
                     }

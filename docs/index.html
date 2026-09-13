@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lc3kit - reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  :root{
+    --bg: #1a1a1c;
+    --panel: #212124;
+    --panel-alt: #27272b;
+    --border: #444448;
+    --border-soft: #333337;
+    --text: #f2f2f0;
+    --text-dim: #c6c6cb;
+    --text-faint: #97979d;
+    --accent: #3fe0c9;
+    --accent-dim: #1fae9a;
+    --badge: #6fa8ff;
+    --badge-dim: #3d78d6;
+    --note: #ffb340;
+    --note-bg: #3a2c14;
+    --note-border: #5c451e;
+    --note-text: #ffd694;
+    --pink: #ff6fa5;
+    --code-bg: #141416;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:16px;
+    line-height:1.75;
+  }
+
+  ::selection{ background:var(--accent-dim); color:#0e0e0f; }
+
+  a{ color:var(--accent); text-decoration:none; }
+  a:hover{ text-decoration:underline; }
+
+  code, .mono{ font-family:var(--mono); }
+
+  .wrap{
+    max-width:980px;
+    margin:0 auto;
+    padding:48px 28px 100px;
+  }
+
+  /* ---------- header ---------- */
+
+  header.top{
+    border-bottom:1px solid var(--border);
+    padding-bottom:28px;
+    margin-bottom:32px;
+  }
+
+  .title-row{
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+
+  h1{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:34px;
+    letter-spacing:0.5px;
+    margin:0;
+    color:var(--accent);
+  }
+
+  .version-tag{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--text-faint);
+    border:1px solid var(--border);
+    padding:3px 9px;
+    border-radius:4px;
+  }
+
+  .tagline{
+    margin:12px 0 18px;
+    color:var(--text-dim);
+    font-size:17px;
+    max-width:72ch;
+  }
+
+  .meta-row{
+    display:flex;
+    gap:22px;
+    flex-wrap:wrap;
+    font-size:14px;
+    color:var(--text-faint);
+  }
+
+  .meta-row span{ display:inline-flex; align-items:center; gap:8px; }
+  .meta-row i{ font-size:16px; color:var(--badge); }
+
+  /* ---------- cross note ---------- */
+
+  .cross-note{
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+    background:var(--note-bg);
+    border:1px solid var(--note-border);
+    border-left:4px solid var(--note);
+    padding:16px 18px;
+    border-radius:5px;
+    font-size:15px;
+    color:var(--note-text);
+    margin:22px 0 0;
+  }
+  .cross-note i{ color:var(--note); margin-top:2px; font-size:19px; }
+  .cross-note code{ color:#ffe3ae; background:#241a0c; padding:2px 6px; border-radius:3px; font-size:13.5px; }
+
+  /* ---------- purpose ---------- */
+
+  section.purpose{
+    margin:34px 0 40px;
+    padding:24px 26px;
+    background:var(--panel);
+    border:1px solid var(--border-soft);
+    border-left:4px solid var(--pink);
+    border-radius:6px;
+  }
+
+  section.purpose h2{
+    font-family:var(--mono);
+    font-size:14px;
+    text-transform:none;
+    color:var(--pink);
+    margin:0 0 14px;
+    font-weight:600;
+  }
+
+  .purpose ul{
+    margin:0;
+    padding-left:20px;
+  }
+  .purpose li{
+    margin:10px 0;
+    color:var(--text);
+  }
+  .purpose li b{ color:var(--accent); font-weight:600; }
+
+  /* ---------- tabs ---------- */
+
+  .tabbar{
+    display:flex;
+    gap:4px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:30px;
+  }
+
+  .tab-btn{
+    font-family:var(--mono);
+    font-size:16px;
+    background:none;
+    border:none;
+    color:var(--text-faint);
+    padding:12px 20px;
+    cursor:pointer;
+    border-bottom:3px solid transparent;
+    display:flex;
+    align-items:center;
+    gap:9px;
+    transition:color .12s ease;
+  }
+  .tab-btn i{ font-size:16px; }
+  .tab-btn:hover{ color:var(--text); }
+  .tab-btn.active{ color:var(--accent); border-bottom-color:var(--accent); }
+
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  /* ---------- content blocks ---------- */
+
+  .intro{
+    color:var(--text-dim);
+    max-width:76ch;
+    margin:0 0 22px;
+    font-size:16.5px;
+  }
+  .intro code{
+    background:var(--code-bg);
+    padding:2px 6px;
+    border-radius:3px;
+    color:var(--text);
+    font-size:14.5px;
+  }
+
+  pre{
+    background:var(--code-bg);
+    border:1px solid var(--border-soft);
+    border-left:3px solid var(--accent-dim);
+    border-radius:5px;
+    padding:18px 20px;
+    overflow-x:auto;
+    font-size:14.5px;
+    line-height:1.75;
+    margin:0 0 26px;
+  }
+  pre code{ color:#dce4e7; }
+  .kw{ color:var(--accent); }
+  .cm{ color:var(--text-faint); }
+  .st{ color:var(--note); }
+
+  h3.section-h{
+    font-family:var(--mono);
+    font-size:19px;
+    font-weight:600;
+    color:var(--badge);
+    margin:38px 0 8px;
+    padding-bottom:8px;
+    border-bottom:1px solid var(--border-soft);
+  }
+
+  h4.sub-h{
+    font-family:var(--mono);
+    font-size:14.5px;
+    font-weight:600;
+    color:var(--text-dim);
+    margin:22px 0 10px;
+  }
+
+  p.block-note{
+    color:var(--text-dim);
+    font-size:15px;
+    margin:4px 0 18px;
+    max-width:78ch;
+  }
+
+  /* ---------- tables ---------- */
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin:0 0 20px;
+    font-size:14.5px;
+  }
+
+  th{
+    text-align:left;
+    font-family:var(--mono);
+    font-weight:600;
+    color:var(--badge);
+    font-size:13px;
+    padding:9px 12px;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+
+  td{
+    padding:11px 12px;
+    border-bottom:1px solid var(--border-soft);
+    vertical-align:top;
+    color:var(--text-dim);
+  }
+
+  td.sig{
+    font-family:var(--mono);
+    color:var(--text);
+    white-space:nowrap;
+    font-size:14px;
+  }
+
+  tr:last-child td{ border-bottom:none; }
+
+  .type-badge{
+    font-family:var(--mono);
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--badge);
+    border:1px solid var(--badge-dim);
+    padding:2px 8px;
+    border-radius:4px;
+    display:inline-block;
+  }
+
+  /* ---------- note callouts (hidden caveats) ---------- */
+
+  .note{
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+    background:var(--note-bg);
+    border:1px solid var(--note-border);
+    border-left:4px solid var(--note);
+    padding:16px 18px;
+    border-radius:5px;
+    font-size:15px;
+    color:var(--note-text);
+    margin:8px 0 26px;
+  }
+  .note i{ color:var(--note); margin-top:2px; font-size:19px; }
+  .note b{ color:#ffe3ae; font-weight:700; }
+  .note code{
+    background:#241a0c;
+    color:#ffe3ae;
+    padding:2px 6px;
+    border-radius:3px;
+    font-size:13.5px;
+  }
+
+  /* ---------- footer ---------- */
+
+  footer{
+    margin-top:60px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-size:14px;
+    color:var(--text-faint);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  footer a{ color:var(--text-dim); }
+  footer a:hover{ color:var(--accent); }
+
+  @media (max-width:560px){
+    table, thead, tbody, th, td, tr{ display:block; }
+    th{ display:none; }
+    td{ border-bottom:none; padding:4px 0; }
+    tr{ padding:10px 0; border-bottom:1px solid var(--border-soft); }
+    td.sig{ padding-top:8px; }
+    td:before{
+      content: attr(data-label);
+      display:block;
+      font-family:var(--mono);
+      font-size:11px;
+      color:var(--text-faint);
+      margin-bottom:3px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title-row">
+      <h1>lc3kit</h1>
+      <span class="version-tag">v1.0.1</span>
+    </div>
+    <p class="tagline">
+      LC-3 virtual machine and two-pass assembler. Header-only, C++20.
+      Reference for the public API only, not an implementation walkthrough.
+    </p>
+    <div class="meta-row">
+      <span><i class="fa-solid fa-code-branch"></i> github.com/0xbad4/lc3kit</span>
+      <span><i class="fa-solid fa-file-lines"></i> header-only, CMake install</span>
+      <span><i class="fa-solid fa-scale-balanced"></i> see LICENCE.md</span>
+    </div>
+  </header>
+
+  <div class="cross-note">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <div>
+      <b>Namespace collision.</b> <code>lc3kit::vm</code> and <code>lc3kit::lasm</code> both define an
+      <code>error_type</code> and an <code>err_str()</code>. If both headers are included, qualify the
+      namespace explicitly (<code>vm::error_type</code>, <code>lasm::error_type</code>) or the wrong one
+      will resolve silently.
+    </div>
+  </div>
+
+  <section class="purpose">
+    <h2>// why this exists</h2>
+    <ul>
+      <li><b>Low level practice.</b> Build something outside interpreted languages, close to the hardware.</li>
+      <li><b>Machine level.</b> Work through instruction fetch/decode/execute, registers, and memory as an actual model instead of reading about it.</li>
+      <li><b>Assemblers and compilers.</b> See how source text becomes symbol tables and encoded machine words, stage by stage.</li>
+      <li><b>Base for LC3kit-IDE.</b> This library is the engine underneath a second project, a debugger and teaching tool for students learning the LC-3 architecture.</li>
+    </ul>
+  </section>
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="vm"><i class="fa-solid fa-microchip"></i> vm</button>
+    <button class="tab-btn" data-tab="asm"><i class="fa-solid fa-diagram-project"></i> asm</button>
+  </div>
+
+  <!-- ===================== VM TAB ===================== -->
+  <div class="tab-panel active" id="tab-vm">
+
+    <p class="intro">
+      <code>lc3kit::vm::VM</code> is a full LC-3 instruction set simulator, plus an optional
+      <code>lc3kit-ext</code> opcode extension (<code>SHL</code>, <code>SHR</code>, <code>MUL</code>, <code>DIV</code>).
+      It exposes a hook system so a debugger, IDE, or test harness can observe every memory access,
+      register write, trap, and interrupt without touching the execution loop itself.
+      Everything below lives in <code>lc3kit/lc3vm/vm.h</code>, included as <code>#include &lt;lc3kit/vm&gt;</code>.
+    </p>
+
+    <pre><code><span class="cm">// minimal run loop</span>
+<span class="kw">lc3kit::vm::VM</span> vm;
+vm.load(obj_stream);
+<span class="kw">auto</span> err = vm.run();
+
+<span class="kw">if</span> (!vm.ok()) {
+    <span class="cm">// vm.get_last_error() / err_str(err)</span>
+}</code></pre>
+
+    <h3 class="section-h">types and enums</h3>
+    <p class="block-note">Namespace <code>lc3kit::vm</code>, defined in <code>arch.h</code> and <code>enums.h</code>, plus shared basics from <code>lc3kit::common.h</code>.</p>
+
+    <table>
+      <thead><tr><th>name</th><th>kind</th><th>description</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="name">exec_policy</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc"><code>RUN</code>, <code>STEP</code>. Controls whether <code>run()</code> executes continuously or sets up single-stepping.</td></tr>
+        <tr><td class="sig" data-label="name">boot_mode</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc"><code>BUILTIN_OS</code> (C++ trap/interrupt handlers, no OS image needed) or <code>CUSTOM_OS</code> (pure hardware simulation, caller supplies the OS image).</td></tr>
+        <tr><td class="sig" data-label="name">error_type</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc">VM error codes: <code>MEM_ALLOC_FAIL</code>, <code>INVALID_MEMORY</code>, <code>INVALID_REGISTERS</code>, <code>ILLEGAL_OPCODE</code>, <code>WRONG_EXEC_POLICY</code>, <code>ALREADY_RUNNING</code>, <code>NO_HARDWARE</code>, <code>HW_NO_KEYBOARD</code>, <code>HW_NO_DISPLAY</code>, <code>PRIVILEGE_VIOLATION</code>, <code>ILLEGAL_STATE</code>, <code>DIVISION_BY_ZERO</code>, <code>OUT_OF_INSTRUCTIONS</code>.</td></tr>
+        <tr><td class="sig" data-label="name">opcodes</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc">The 16 LC-3 opcode values, plus <code>EXT</code> (<code>0b1101</code>) reserved for the extension set.</td></tr>
+        <tr><td class="sig" data-label="name">registers</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc"><code>R0</code>-<code>R7</code>, plus <code>PC</code> and <code>PSR</code> outside the 3-bit GPR field.</td></tr>
+        <tr><td class="sig" data-label="name">r_cond</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc"><code>POS</code>, <code>ZRO</code>, <code>NEG</code> condition flags.</td></tr>
+        <tr><td class="sig" data-label="name">mmio</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc">Memory-mapped device addresses: <code>KBSR</code>, <code>KBDR</code>, <code>DSR</code>, <code>DDR</code>, <code>MCR</code>.</td></tr>
+        <tr><td class="sig" data-label="name">trap_vectors</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc">Standard trap vectors: <code>GETC</code>, <code>OUT</code>, <code>PUTS</code>, <code>IN</code>, <code>PUTSP</code>, <code>HALT</code>.</td></tr>
+        <tr><td class="sig" data-label="name">interrupts</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc">Interrupt source ids. Currently one value: <code>KEYBOARD</code>.</td></tr>
+        <tr><td class="sig" data-label="name">ext_opcodes</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc"><code>SHL</code>, <code>SHR</code>, <code>MUL</code>, <code>DIV</code>. Sub-opcodes under <code>opcodes::EXT</code>.</td></tr>
+        <tr><td class="sig" data-label="name">section_addr / sections_addr</td><td data-label="kind"><span class="type-badge">struct / vector</span></td><td data-label="desc"><code>{ origin, size }</code> per loaded image, and the list of them returned by <code>sections()</code>.</td></tr>
+        <tr><td class="sig" data-label="name">breakpoints_t</td><td data-label="kind"><span class="type-badge">alias</span></td><td data-label="desc"><code>std::bitset&lt;MEMORY_MAX&gt;</code>, one bit per addressable word.</td></tr>
+        <tr><td class="sig" data-label="name">std_word_t / std_sword_t</td><td data-label="kind"><span class="type-badge">alias</span></td><td data-label="desc"><code>uint16_t</code> / <code>int16_t</code>, the machine word types used across both <code>vm</code> and <code>lasm</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="section-h">hardware interfaces</h3>
+    <p class="block-note">Attach these with <code>set_hw_keyboard()</code> / <code>set_hw_display()</code> before running. Both live in <code>lc3vm/hw.h</code>.</p>
+
+    <h4 class="sub-h">Keyboard (vm_keyboard)</h4>
+    <table>
+      <thead><tr><th>method</th><th>returns</th><th>description</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="method">emit_char(char c)</td><td data-label="returns">error_type</td><td data-label="desc">Writes a character into KBDR and sets the KBSR ready bit.</td></tr>
+        <tr><td class="sig" data-label="method">set_addr(kbsr*, kbdr*)</td><td data-label="returns">void</td><td data-label="desc">Points the device at its memory-mapped registers. Called by the VM on attach.</td></tr>
+        <tr><td class="sig" data-label="method">is_memory_valid()</td><td data-label="returns">bool</td><td data-label="desc">True once both register pointers are set.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><code>emit_char()</code> has no locking or atomics of its own. If you feed the keyboard from a
+      separate thread than the one calling <code>vm.step()</code> / <code>vm.run()</code>, you are
+      responsible for the synchronization.</div>
+    </div>
+
+    <h4 class="sub-h">Display (vm_display)</h4>
+    <table>
+      <thead><tr><th>method</th><th>returns</th><th>description</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="method">set_addr(dsr*, ddr*)</td><td data-label="returns">void</td><td data-label="desc">Points the device at its memory-mapped registers and marks it ready.</td></tr>
+        <tr><td class="sig" data-label="method">set_callback(cb, userdata=null)</td><td data-label="returns">void</td><td data-label="desc">Registers a <code>void(char, void*)</code> callback fired on each write.</td></tr>
+        <tr><td class="sig" data-label="method">on_write()</td><td data-label="returns">void</td><td data-label="desc">Invoked by the VM after a DDR write; triggers the callback.</td></tr>
+        <tr><td class="sig" data-label="method">is_ready() const</td><td data-label="returns">bool</td><td data-label="desc">Reads the DSR ready bit.</td></tr>
+        <tr><td class="sig" data-label="method">last_char()</td><td data-label="returns">char</td><td data-label="desc">Last byte written to DDR.</td></tr>
+        <tr><td class="sig" data-label="method">ready(r=true)</td><td data-label="returns">void</td><td data-label="desc">Sets or clears the DSR ready bit directly.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="section-h">hooks (vm_hooks)</h3>
+    <p class="block-note">
+      A plain struct of <code>std::function</code> fields, all <code>nullptr</code> by default, from <code>lc3vm/hooks.h</code>.
+      Reach it through <code>vm.hooks()</code> and assign only what you need. Every callback receives a <code>VM&amp;</code> as its first argument.
+    </p>
+
+    <table>
+      <thead><tr><th>hook</th><th>fires</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="hook">on_start / on_reset</td><td data-label="fires">start of <code>run()</code> (unless resuming from a breakpoint) / inside <code>reset()</code></td></tr>
+        <tr><td class="sig" data-label="hook">before_instruction / after_instruction</td><td data-label="fires">around each fetch-decode-execute cycle, with the current PC</td></tr>
+        <tr><td class="sig" data-label="hook">before_memory_read / after_memory_read</td><td data-label="fires">around <code>mem_read()</code>, when <code>hk</code> is true</td></tr>
+        <tr><td class="sig" data-label="hook">before_memory_write / after_memory_write</td><td data-label="fires">around <code>mem_write()</code>, when <code>hk</code> is true</td></tr>
+        <tr><td class="sig" data-label="hook">before_register_write / after_register_write</td><td data-label="fires">around a general-purpose register write</td></tr>
+        <tr><td class="sig" data-label="hook">on_breakpoint</td><td data-label="fires">PC lands on a set breakpoint; return value decides what happens next (see note below)</td></tr>
+        <tr><td class="sig" data-label="hook">before_trap / after_trap</td><td data-label="fires">around TRAP servicing, with the 8-bit vector</td></tr>
+        <tr><td class="sig" data-label="hook">before_interrupt / after_interrupt</td><td data-label="fires">around interrupt servicing</td></tr>
+        <tr><td class="sig" data-label="hook">on_invalid_instruction</td><td data-label="fires">an illegal opcode is fetched</td></tr>
+        <tr><td class="sig" data-label="hook">on_invalid_memory_access</td><td data-label="fires">user mode tries to touch supervisor space or device registers</td></tr>
+        <tr><td class="sig" data-label="hook">on_halt</td><td data-label="fires">execution stops, with the PC and whether the stop was forced</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>on_breakpoint</b> returns a bool: <code>true</code> means keep running, <code>false</code>
+      means pause. There is no separate <code>resume()</code>. To continue after a pause, call
+      <code>run()</code> again, it detects the paused-on-breakpoint state and continues from there.</div>
+    </div>
+
+    <h3 class="section-h">VM class</h3>
+
+    <h4 class="sub-h">setup</h4>
+    <table>
+      <thead><tr><th>method</th><th>returns</th><th>description</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="method">VM(expo=RUN, bm=BUILTIN_OS)</td><td data-label="returns">-</td><td data-label="desc">Constructor. Not copyable.</td></tr>
+        <tr><td class="sig" data-label="method">set_hw_keyboard(vm_keyboard*)</td><td data-label="returns">void</td><td data-label="desc">Attaches the keyboard device. Fails if the VM is already running.</td></tr>
+        <tr><td class="sig" data-label="method">set_hw_display(vm_display*)</td><td data-label="returns">void</td><td data-label="desc">Attaches the display device. Fails if the VM is already running.</td></tr>
+        <tr><td class="sig" data-label="method">set_ext_enabled(bool)</td><td data-label="returns">void</td><td data-label="desc">Enables/disables the <code>lc3kit-ext</code> opcode set.</td></tr>
+        <tr><td class="sig" data-label="method">set_exec_policy(exec_policy)</td><td data-label="returns">void</td><td data-label="desc">Switches between <code>RUN</code> and <code>STEP</code>.</td></tr>
+        <tr><td class="sig" data-label="method">set_boot_mode(boot_mode)</td><td data-label="returns">void</td><td data-label="desc">Switches between <code>BUILTIN_OS</code> and <code>CUSTOM_OS</code>.</td></tr>
+        <tr><td class="sig" data-label="method">set_origin(std_word_t)</td><td data-label="returns">void</td><td data-label="desc">Sets the load origin and moves PC there directly.</td></tr>
+        <tr><td class="sig" data-label="method">mem_write(addr, value, hk=true)</td><td data-label="returns">void</td><td data-label="desc">Writes memory, enforcing the user/supervisor privilege boundary and MMIO side effects.</td></tr>
+      </tbody>
+    </table>
+
+    <h4 class="sub-h">queries</h4>
+    <table>
+      <thead><tr><th>method</th><th>returns</th><th>description</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="method">is_running() const</td><td data-label="returns">bool</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">is_debug() const</td><td data-label="returns">bool</td><td data-label="desc">True when exec policy is <code>STEP</code>.</td></tr>
+        <tr><td class="sig" data-label="method">is_memory_valid() const</td><td data-label="returns">bool</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">is_registers_valid() const</td><td data-label="returns">bool</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">is_ext_enabled() const</td><td data-label="returns">bool</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">is_paused_on_breakpoint() const</td><td data-label="returns">bool</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">get_exec_policy() const</td><td data-label="returns">exec_policy</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">get_boot_mode() const</td><td data-label="returns">boot_mode</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">breakpoints()</td><td data-label="returns">const breakpoints_t&amp;</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">mem_read(addr, hk=true)</td><td data-label="returns">std_word_t</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">reg_read(registers)</td><td data-label="returns">std_word_t</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">pc()</td><td data-label="returns">std_word_t</td><td data-label="desc">Shorthand for <code>reg_read(registers::PC)</code>.</td></tr>
+        <tr><td class="sig" data-label="method">sections()</td><td data-label="returns">const sections_addr&amp;</td><td data-label="desc">Origin/size of every loaded image.</td></tr>
+        <tr><td class="sig" data-label="method">get_last_error() const</td><td data-label="returns">error_type</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">get_used_memory_size() const</td><td data-label="returns">std_word_t</td><td data-label="desc">Word count occupied by the most recent <code>load()</code>.</td></tr>
+        <tr><td class="sig" data-label="method">ok() const</td><td data-label="returns">bool</td><td data-label="desc">True when <code>get_last_error() == NO_ERROR</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h4 class="sub-h">control and execution</h4>
+    <table>
+      <thead><tr><th>method</th><th>returns</th><th>description</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="method">hooks()</td><td data-label="returns">vm_hooks&amp;</td><td data-label="desc">Mutable access to the callback table.</td></tr>
+        <tr><td class="sig" data-label="method">clear_error()</td><td data-label="returns">void</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">reset()</td><td data-label="returns">void</td><td data-label="desc">Zeroes memory/registers, clears breakpoints, sections, and errors.</td></tr>
+        <tr><td class="sig" data-label="method">add_break_point(addr)</td><td data-label="returns">void</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">remove_break_point(addr)</td><td data-label="returns">void</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">load(istream&amp;)</td><td data-label="returns">void</td><td data-label="desc">Reads one big-endian <code>.obj</code> image (origin word + payload) and appends it as a new section.</td></tr>
+        <tr><td class="sig" data-label="method">run()</td><td data-label="returns">error_type</td><td data-label="desc">Starts or resumes execution. Returns immediately in <code>STEP</code> mode after setup.</td></tr>
+        <tr><td class="sig" data-label="method">stop()</td><td data-label="returns">void</td><td data-label="desc">Requests an immediate halt.</td></tr>
+        <tr><td class="sig" data-label="method">step()</td><td data-label="returns">std_word_t</td><td data-label="desc">Executes one instruction in <code>STEP</code> mode, returns the resulting PC.</td></tr>
+        <tr><td class="sig" data-label="method">~VM()</td><td data-label="returns">-</td><td data-label="desc">Frees memory/register storage, fires <code>on_halt</code> if still running.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>Multiple .ORIG images.</b> <code>load()</code> reads exactly one image per call. A program
+      with several <code>.ORIG</code> blocks needs one <code>load()</code> call per block, and PC is reset
+      to the origin of whichever image was loaded last.</div>
+    </div>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>JSR / JSRR / RET.</b> JSR and JSRR write R7 directly and do not fire the register-write hooks
+      or touch condition codes. RET has no separate code path, it is JMP R7 by convention, so it goes
+      through the same handling as JMP.</div>
+    </div>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>MCR write side effect.</b> Writing to the MCR address with bit 15 cleared halts the VM
+      immediately from inside <code>mem_write()</code>, regardless of whether the write came from
+      simulated code or a direct host call.</div>
+    </div>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>GETC / IN busy-wait.</b> Both traps spin on the keyboard ready bit inside the trap handler.
+      If nothing external ever sets KBSR, the trap does not return.</div>
+    </div>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>Interrupts.</b> Only one interrupt source is modeled: <code>interrupts::KEYBOARD</code>.
+      There is no general interrupt vector table beyond that.</div>
+    </div>
+
+  </div>
+
+  <!-- ===================== ASM TAB ===================== -->
+  <div class="tab-panel" id="tab-asm">
+
+    <p class="intro">
+      <code>lc3kit::lasm::Asm</code> is the orchestrator for a two-pass pipeline: lex, parse, build the
+      symbol table, then encode. It runs the stages implemented by <code>Lexer</code>, <code>Parser</code>,
+      <code>SymTableGenerator</code>, and <code>Encoder</code>, collecting errors from whichever stage
+      fails and stopping there. This page documents <code>Asm</code> itself and the types you interact
+      with through it, not the internals of the other four classes.
+      Included as <code>#include &lt;lc3kit/asm&gt;</code>.
+    </p>
+
+    <pre><code><span class="cm">// minimal assemble-and-dump</span>
+<span class="kw">lc3kit::lasm::Asm</span> asmr;
+
+<span class="kw">if</span> (asmr.assemble(source_stream)) {
+    asmr.dump(obj_out);
+} <span class="kw">else</span> {
+    <span class="cm">// walk asmr.errors(), each has a type and a tpos</span>
+}</code></pre>
+
+    <h3 class="section-h">types</h3>
+    <p class="block-note">Namespace <code>lc3kit::lasm</code>. Defined across <code>ds.h</code>, <code>error.h</code>, <code>symtab.h</code>, <code>encoder.h</code>.</p>
+
+    <table>
+      <thead><tr><th>name</th><th>kind</th><th>description</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="name">source_code</td><td data-label="kind"><span class="type-badge">struct</span></td><td data-label="desc"><code>{ const char* data, uint32_t size }</code>. Raw input buffer for <code>assemble()</code>.</td></tr>
+        <tr><td class="sig" data-label="name">tpos</td><td data-label="kind"><span class="type-badge">struct</span></td><td data-label="desc"><code>{ line, col }</code>. Attached to every error and instruction node.</td></tr>
+        <tr><td class="sig" data-label="name">lines_addrs_t</td><td data-label="kind"><span class="type-badge">alias</span></td><td data-label="desc"><code>unordered_map&lt;uint, std_word_t&gt;</code>, source line number to assembled address, from <code>line_addresses()</code>.</td></tr>
+        <tr><td class="sig" data-label="name">sym_table_t</td><td data-label="kind"><span class="type-badge">alias</span></td><td data-label="desc"><code>unordered_map&lt;str_t, std_word_t&gt;</code>, label name to address.</td></tr>
+        <tr><td class="sig" data-label="name">section / sections_t</td><td data-label="kind"><span class="type-badge">struct / vector</span></td><td data-label="desc"><code>{ origin, words }</code> per <code>.ORIG</code> block, and the list of them from <code>sections()</code>.</td></tr>
+        <tr><td class="sig" data-label="name">error_type</td><td data-label="kind"><span class="type-badge">enum</span></td><td data-label="desc">Lexer, parser, and encoder error codes, e.g. <code>UNTERMINATED_STRING</code>, <code>REGISTER_OUT_OF_RANGE</code>, <code>UNDEFINED_LABEL</code>, <code>NO_ORIG</code>.</td></tr>
+        <tr><td class="sig" data-label="name">Error / errors_t</td><td data-label="kind"><span class="type-badge">struct / vector</span></td><td data-label="desc"><code>{ type, pos }</code> per error, collected in <code>errors()</code>.</td></tr>
+        <tr><td class="sig" data-label="name">err_str(error_type)</td><td data-label="kind"><span class="type-badge">function</span></td><td data-label="desc">Error code to human-readable string.</td></tr>
+        <tr><td class="sig" data-label="name">MNEMONICS / MNEMONICS_EXT / DIRECTIVES</td><td data-label="kind"><span class="type-badge">const map</span></td><td data-label="desc">Mnemonic and directive name to token type lookup tables, used internally by the lexer.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="section-h">Asm class</h3>
+    <p class="block-note">Owns one instance each of <code>Lexer</code>, <code>Parser</code>, <code>SymTableGenerator</code>, <code>Encoder</code> as protected members and drives them in sequence.</p>
+
+    <table>
+      <thead><tr><th>method</th><th>returns</th><th>description</th></tr></thead>
+      <tbody>
+        <tr><td class="sig" data-label="method">set_ext_enabled(bool)</td><td data-label="returns">void</td><td data-label="desc">Propagates <code>lc3kit-ext</code> enable state to the lexer, parser, and encoder.</td></tr>
+        <tr><td class="sig" data-label="method">is_ext_enabled() const</td><td data-label="returns">bool</td><td data-label="desc"></td></tr>
+        <tr><td class="sig" data-label="method">ok() const</td><td data-label="returns">bool</td><td data-label="desc">True when <code>errors()</code> is empty.</td></tr>
+        <tr><td class="sig" data-label="method">errors() const</td><td data-label="returns">const errors_t&amp;</td><td data-label="desc">All errors collected from whichever stage stopped the pipeline.</td></tr>
+        <tr><td class="sig" data-label="method">sym_table() const</td><td data-label="returns">const sym_table_t&amp;</td><td data-label="desc">Resolved labels after a successful pass 1.</td></tr>
+        <tr><td class="sig" data-label="method">sections() const</td><td data-label="returns">const sections_t&amp;</td><td data-label="desc">Encoded output, one entry per <code>.ORIG</code> block.</td></tr>
+        <tr><td class="sig" data-label="method">line_addresses() const</td><td data-label="returns">lines_addrs_t</td><td data-label="desc">Built on demand from the parsed instruction list.</td></tr>
+        <tr><td class="sig" data-label="method">assemble(source_code)</td><td data-label="returns">bool</td><td data-label="desc">Runs the full pipeline over a raw buffer. Resets internal error state first.</td></tr>
+        <tr><td class="sig" data-label="method">assemble(istream&amp;)</td><td data-label="returns">bool</td><td data-label="desc">Reads the stream fully, then delegates to <code>assemble(source_code)</code>.</td></tr>
+        <tr><td class="sig" data-label="method">dump(ostream&amp;) const</td><td data-label="returns">void</td><td data-label="desc">Writes assembled sections as big-endian <code>.obj</code> bytes. Caller owns the stream.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>Reserved keyword.</b> The header installs at <code>lc3kit/asm</code>, but the namespace is
+      <code>lc3kit::lasm</code>, not <code>lc3kit::asm</code>. <code>asm</code> is a C++ reserved word, so
+      the namespace was renamed while the include path was not.</div>
+    </div>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>Reusable instance.</b> <code>assemble()</code> clears the internal error list on every call,
+      so the same <code>Asm</code> object can assemble several source files in a row without manual
+      resets.</div>
+    </div>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>Errors are single-stage.</b> The pipeline stops at the first stage that reports errors, so
+      <code>errors()</code> only ever holds output from one stage at a time: lexer errors, or parser
+      errors, or symbol table errors, or encoder errors, never a mix.</div>
+    </div>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>Extension immediates.</b> <code>lc3kit-ext</code> instructions (<code>SHL</code>,
+      <code>SHR</code>, <code>MUL</code>, <code>DIV</code>) take a 3-bit immediate, not the 5-bit field
+      used by core <code>ADD</code>/<code>AND</code>.</div>
+    </div>
+
+    <div class="note">
+      <i class="fa-solid fa-circle-info"></i>
+      <div><b>dump() ordering.</b> Sections are written in the order the encoder produced them, which
+      follows source order, not ascending address order.</div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span>lc3kit v1.0.1, header-only, C++20</span>
+    <span>reference generated for the public API surface only</span>
+  </footer>
+
+</div>
+
+<script>
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>

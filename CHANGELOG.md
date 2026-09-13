@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0] - 2026-Sep-09 - Initial release
+## [1.0.0] - Initial release
 
 First public push of the LC3kit project.
 
@@ -54,3 +54,9 @@ First public push of the LC3kit project.
 ### Notes
 
 - `lc3kit::vm` and `lc3kit::asm` share some type names (`error_type`, `err_str`, etc.) - always use the full namespace qualifier (`vm::error_type`, `asm::error_type`) to avoid ambiguity when both headers are included.
+
+## [1.0.1] - Fix bugs and Added docs
+
+- Assembler: Fixed directives not being treated as case-insensitive.
+- VM       : Execution origin now can change if running in STEP mode.
+- Docs     : Added LC3kit-ext encoding documentation and live HTML documentation.

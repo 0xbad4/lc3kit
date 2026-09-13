@@ -1,5 +1,7 @@
 #pragma once
 
+#define __LC3_KIT_LIB_VERSION "1.0.1"
+
 #include <cstdint>
 #include <string>
 #include <bitset>

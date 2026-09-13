@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
 project(lc3kit
-    VERSION     1.0.0
+    VERSION     1.0.1
     DESCRIPTION "LC-3 Virtual Machine and Assembler"
     LANGUAGES   CXX
 )
