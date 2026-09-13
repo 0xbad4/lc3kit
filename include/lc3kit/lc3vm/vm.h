@@ -1484,4 +1484,5 @@ namespace lc3kit::vm
             }
     };
     
+    #undef self
 } // namespace lc3kit
