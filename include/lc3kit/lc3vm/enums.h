@@ -9,35 +9,38 @@ namespace lc3kit::vm
      * @brief Execution policy / run mode.
      */
     enum class exec_policy : uint8_t {
-        RUN,
-        STEP
+        RUN,  ///< Normal mode
+        STEP  ///< Debug mode, execute instructions one by one
     };
 
     /**
-     * Controls how the VM handles trap and interrupt service routines.
-     *
-     * BUILTIN_OS:
+     * @brief Controls how the VM handles trap and interrupt service routines.
+     * 
+     * @markdown
+     * - `BUILTIN_OS`:
      *   Trap and interrupt service routines are implemented in C++.
      *   Memory and registers are still updated through the normal bus
      *   (mem_write, register_write, ssp_push/pop) so observers (debuggers,
      *   memory panels, register watches) see all state changes exactly as
-     *   they would if a real lc3os image were running -- PSR switches,
+     *   they would if a real lc3os image were running - PSR switches,
      *   supervisor stack pushes/pops, R0 updates, KBSR/KBDR clears are
      *   all visible in real time.
      *
-     * CUSTOM_OS:
+     * - `CUSTOM_OS`:
      *   The VM is a pure hardware simulator. Trap vectors, interrupt vectors,
      *   and supervisor space are entirely owned by the user's loaded OS image.
-     *   No C++ service routines fire -- all trap and interrupt handling runs
+     *   No C++ service routines fire - all trap and interrupt handling runs
      *   as real LC-3 assembly code, with the VM staying completely out of the way.
+     * @markdownend
+     * 
     */
     enum class boot_mode : uint8_t {
-        BUILTIN_OS,   // use C++ trap/interrupt implementations (default)
-        CUSTOM_OS     // hands-off: user loads their own OS, VM does nothing
+        BUILTIN_OS,   ///< use C++ trap/interrupt implementations (default)
+        CUSTOM_OS     ///< hands-off: user loads their own OS, VM does nothing
     };
 
     /**
-     * @brief errors.
+     * @brief errors types.
      */
     enum class error_type {
         NO_ERROR,
@@ -51,7 +54,7 @@ namespace lc3kit::vm
         HW_NO_KEYBOARD,
         HW_NO_DISPLAY,
         PRIVILEGE_VIOLATION,
-        ILLEGAL_STATE,
+        ILLEGAL_STATE,    ///< Attempt to change VM state while running (set hardware, exec policy, ...etc)
         DIVISION_BY_ZERO,
         OUT_OF_INSTRUCTIONS
     };

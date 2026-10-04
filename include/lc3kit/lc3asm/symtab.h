@@ -3,6 +3,7 @@
 #include "parser.h"
 
 namespace lc3kit::lasm {
+    using namespace detail;
     /**
      * @brief Maps labels to their assigned memory addresses.
      */
@@ -35,10 +36,14 @@ namespace lc3kit::lasm {
             // NOTE: no need to verify if lc3kit-ext is enabled.
             SymTableGenerator() = default;
 
-            // query
+            /**
+             * @brief Returns the generated symbol table.
+             */
             const sym_table_t& get() const { return m_sym_table; }
 
-            // returns 0 and sets error if label not found
+            /**
+             * @brief Returns the address of a label, or reports an error if not found.
+             */
             std_word_t find(const str_t& lbl) {
                 auto it = m_sym_table.find(lbl);
 
@@ -49,10 +54,16 @@ namespace lc3kit::lasm {
                 return it->second;
             }
 
+            /**
+             * @brief Returns the address of a label, or 0 if not found.
+             */
             std_word_t operator[] (const str_t& lbl) {
                 return find(lbl);
             }
 
+            /**
+             * @brief Generate a symbol table from a list of parsed instructions.
+             */
             void generate(const instructions& instructions) {
                 reset();
                 m_sym_table.clear();
@@ -72,6 +83,7 @@ namespace lc3kit::lasm {
                 stop();
             }
 
+        protected:
             // each is 1 word
             void visit(InsADD* ins) { 
                 record(ins); 

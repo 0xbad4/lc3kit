@@ -153,6 +153,12 @@ namespace lc3kit::lasm {
         public:
             using BaseObj::BaseObj;
 
+            /**
+             * @brief Encode a list of resolved instructions into machine words.
+             * 
+             * @param instructions List of resolved instructions to encode.
+             * @param sym_table Symbol table mapping labels to addresses.
+             */
             void encode(const instructions& instructions, const sym_table_t& sym_table) {
                 m_sym_table = &sym_table;
                 m_sections.clear();
@@ -174,10 +180,17 @@ namespace lc3kit::lasm {
                 stop();
             }
             
+            /**
+             * @brief Returns the encoded sections of machine words.
+             * 
+             * @return A vector of sections, each containing an origin address and a list of emitted words.
+             */
             const sections_t& sections()  const {
                 return m_sections;
             }
 
+
+        protected:
             // + arithmetic
 
             // ADD DR, SR1, SR2/imm5

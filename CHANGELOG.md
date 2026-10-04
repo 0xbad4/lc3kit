@@ -60,3 +60,10 @@ First public push of the LC3kit project.
 - Assembler: Fixed directives not being treated as case-insensitive.
 - VM       : Execution origin now can change if running in STEP mode.
 - Docs     : Added LC3kit-ext encoding documentation and live HTML documentation.
+
+## [1.0.2] - Updated docs to `docxx`
+
+- Docs : Added `docxx` generated HTML documentation to the project.
+- Docs : Added more detailed documentation.
+- Docs : Added docs for build process.
+- Code : Hidden some internal functions from the public API.

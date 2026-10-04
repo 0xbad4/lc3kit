@@ -1,0 +1,72 @@
+{
+  "project": {
+    "name": "LC3-kit",
+    "version": "1.0.2",
+    "author": "0xbad4",
+    "repo": "https://github.com/0xbad4/lc3kit",
+    "brief": "LC-3 virtual machine and two-pass assembler. Header-only, C++20.",
+    "description": "A small, focused LC-3 library for learning, experimenting, and building around the LC-3 architecture. It includes a virtual machine and assembler, all in a clean, header-only C++20 package.",
+
+    "nav": [
+      {
+        "label": "Build",
+        "url": "./BUILD.md",
+        "type": "markdown",
+        "icon": "hammer"
+      },
+      {
+        "label": "Extension",
+        "url": "./EXTENSION.md",
+        "type": "markdown",
+        "icon": "puzzle-piece"
+      },
+      {
+        "label": "Changelog",
+        "url": "./CHANGELOG.md",
+        "type": "markdown",
+        "icon": "bookmark"
+      },
+      {
+        "label": "Licence",
+        "url": "./LICENCE.md",
+        "type": "markdown",
+        "icon": "balance-scale"
+      },
+      {
+        "label": "Source Code",
+        "url": "https://github.com/0xbad4/lc3kit",
+        "icon": "code"
+      },
+      {
+        "label": "Developer",
+        "url": "https://github.com/0xbad4",
+        "icon": "user"
+      }
+    ],
+
+    "title": "LC3-kit | API Reference",
+    "icon": "img/lc3kit.png",
+    "favicon": "img/lc3kit.png",
+    
+    "hjs_code_theme": "atom-one-dark"
+  },
+
+  "input": [
+    "include"
+  ],
+
+  "patterns": [
+    "*.h"
+  ],
+
+  "access": [
+    "public"
+  ],
+
+  "include_undocumented": true,
+  "group_by": "namespace",
+  "root_namespace": "",
+  "exclude": ["*::detail::*", "detail::*", "detail"],
+  "source_url": "https://github.com/0xbad4/lc3kit/blob/main/{file}#L{line}",
+  "overview_file": "./README.md"
+}

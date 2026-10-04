@@ -1,0 +1,3384 @@
+{
+  "metadata": {
+    "name": "LC3-kit",
+    "version": "1.0.2",
+    "author": "0xbad4",
+    "repo": "https://github.com/0xbad4/lc3kit",
+    "brief": "LC-3 virtual machine and two-pass assembler. Header-only, C++20.",
+    "description": "A small, focused LC-3 library for learning, experimenting, and building around the LC-3 architecture. It includes a virtual machine and assembler, all in a clean, header-only C++20 package.",
+    "nav": [
+      {
+        "label": "Build",
+        "url": "./BUILD.md",
+        "type": "markdown",
+        "icon": "hammer",
+        "content": "# Build\n\n## Quick start\n\n```bash\ncmake -S . -B build\ncmake --build build\n```\n\nThis generates the CMake build tree in `build/` and compiles the project using C++20.\n\n## CMake build\n\nThe project is configured in `CMakeLists.txt` as a header-only library target named `lc3kit`.\n\n```bash\ncmake -S . -B build\ncmake --build build\ncmake --install build\n```\n\n- Build directory: `build/`\n- Install step: optional, installs headers and CMake package files\n- Target: `lc3kit` (header-only interface library)\n\n## Legacy Makefile\n\nThe repo also includes a simple Make-based workflow under `src/`.\n\n```bash\ncd src\nmake init\nmake asm\nmake vm\nmake test\nmake clean\n```\n\n### Produced binaries\n\n`src/bin/` contains the generated executables:\n- `lc3kit-asm`\n- `lc3kit-vm`\n- `test`\n\n### Makefile details\n\n- Compiler: `g++`\n- Standard: `-std=c++20`\n- Include path: `../include`\n- Output directory: `src/bin`\n\n## Notes\n\n- The library is header-only, so no compiled library artifact is produced by CMake beyond the install metadata.\n- The assembler and VM sample apps are built as standalone binaries for local testing and demos.\n- For most users, the CMake path is the preferred build flow."
+      },
+      {
+        "label": "Extension",
+        "url": "./EXTENSION.md",
+        "type": "markdown",
+        "icon": "puzzle-piece",
+        "content": "# lc3kit-ext\n\nOccupies the reserved opcode slot `0b1101` with four arithmetic/bitwise operations:\nSHL, SHR, MUL, DIV.\n\nDisabled by default. Enable on the VM before execution:\n\n```cpp\nvm.set_ext_enabled(true);\n```\n\nWhen disabled, any instruction with opcode `0b1101` sets `ILLEGAL_OPCODE`, stops execution,\nand fires `on_invalid_instruction`. This applies during both `run()` and `step()`.\n\n---\n\n## Encoding\n\n```\n[15:12]  opcode  — 1101 (fixed)\n[11:10]  op      — 00=SHL  01=SHR  10=MUL  11=DIV\n[9:7]    DR      — destination register\n[6:4]    SR1     — first source register\n[3]      mode    — 0=immediate  1=register\n[2:0]    imm3 / SR2\n```\n\nThe layout mirrors ADD and AND: DR / SR1 / mode / operand at the same bit positions,\nwith op-select bits at `[11:10]` replacing the fixed arithmetic function.\n\n---\n\n## Operations\n\n| op bits | Mnemonic | mode=0 (immediate) | mode=1 (register) |\n|---------|----------|--------------------|-------------------|\n| `00` | SHL | DR = SR1 << SEXT(imm3) | DR = SR1 << SR2 |\n| `01` | SHR | DR = SR1 >> SEXT(imm3) | DR = SR1 >> SR2 |\n| `10` | MUL | DR = SR1 * SEXT(imm3)  | DR = SR1 * SR2  |\n| `11` | DIV | DR = SR1 / SEXT(imm3)  | DR = SR1 / SR2  |\n\n### Immediate mode\n\n`imm3` is a 3-bit value sign-extended to 16 bits before use. Range: `-4` to `+3`.\n\nFor constants outside that range, load the value into a register and use register mode.\n\n### SHR\n\nArithmetic right shift. The sign bit is replicated. Implemented as\n`(int16_t)SR1 >> operand` — standard C++ arithmetic shift for signed integers.\n\n### MUL\n\nProduces the low 16 bits of the result. Carry into bit 16 and above is silently discarded.\n\n### DIV\n\nInteger division, truncating toward zero (standard C++ behavior for signed operands).\nIf the operand is `0`: sets `DIVISION_BY_ZERO`, clears `m_running`, fires\n`on_invalid_instruction`. No result is stored.\n\n---\n\n## Condition codes\n\nN/Z/P are updated after every lc3kit-ext instruction, identical to ADD/AND/NOT/LD/LDI/LDR/LEA.\nThe register hook chain (`before_register_write` / `after_register_write`) fires as usual.\n\n---\n\n## Example encoding\n\n`SHL R2, R0, R1` (register mode, op=`00`):\n\n```\n1101  00  010  000  1  001\n^^^   ^^  ^^^  ^^^  ^  ^^^\nop   sub   DR  SR1  m  SR2\n```\n\nBinary: `1101 0001 0000 1001` = `0xD109`\n\n---\n\n## Notes\n\n- The extension does not add new condition flags or exception vectors beyond\n  `DIVISION_BY_ZERO` for DIV by zero.\n- All lc3kit-ext operations produce 16-bit results; there is no overflow detection for MUL.\n- The `imm3` immediate is sign-extended, so `SHL R0, R0, #-1` is equivalent to\n  `SHL R0, R0, #0xFFFF` before masking — the shift count is treated as a signed 16-bit\n  quantity. Negative shift counts have hardware-defined behavior in C++ and are not\n  range-checked by the VM.\n"
+      },
+      {
+        "label": "Changelog",
+        "url": "./CHANGELOG.md",
+        "type": "markdown",
+        "icon": "bookmark",
+        "content": "# Changelog\n\n## [1.0.0] - Initial release\n\nFirst public push of the LC3kit project.\n\n### VM\n\n- Full LC-3 ISA implementation\n- LC3kit-ext instruction set extension (opcode `0b1101`)\n- Privilege model: supervisor/user mode via PSR[15], supervisor stack (SSP/USP) switching on trap entry and RTI\n- Trap handling: builtin C++ implementations for GETC, OUT, PUTS, IN, PUTSP,\n  HALT with full PSR/PC push-pop on supervisor stack, observable by debuggers\n- Two boot modes: `BUILTIN_OS` (C++ trap shortcuts, no OS image required) and\n  `CUSTOM_OS` (pure hardware simulator, user loads their own LC-3 OS)\n- Hardware abstraction: `Keyboard` (KBSR/KBDR memory-mapped, thread-safe emit)\n  and `Display` (DSR/DDR memory-mapped, callback-based output)\n- Hook system: lifecycle, per-instruction, memory read/write, register write,\n  breakpoint, trap, halt, invalid instruction, invalid memory access hooks\n- Breakpoint support: `add_break_point` / `remove_break_point`, fires\n  `on_breakpoint` hook with bool return (true=resume, false=pause)\n- Step mode: `step()` for single-instruction execution, `run()` for continuous,\n  `resume()` via `run()` after breakpoint pause\n- Object file loading: multiple `.ORIG` sections supported (requires separate load for each, Execution starts at last section by default.)\n- Full error reporting via `error_t` and `get_last_error()`\n\n### Assembler\n\n- Two-pass assembler pipeline: Lexer -> Parser -> SymTabGenerator -> Encoder\n- Lexer: all LC-3 token types, hex (`xNN`), decimal (`#N`, bare `N`),\n  strings with escape sequences (`\\n`, `\\t`, `\\r`, `\\\\`, `\\\"`),\n  mnemonic/directive keyword table, multiple error accumulation (`errors_t`)\n- Parser: full LC-3 instruction set, all BR variants and J* aliases,\n  all TRAP aliases (GETC/OUT/PUTS/IN/PUTSP/HALT), all directives\n  (`.ORIG`, `.END`, `.FILL`, `.BLKW`, `.STRINGZ`), label-only lines,\n  consecutive label chains via `InsNOP` carrier nodes\n- Visitor pattern: `Visitor` with one `visit()` per concrete instruction class\n- Symbol table: pass 1 assigns addresses, forward label references resolved in\n  pass 2 by the encoder\n- Encoder: full instruction encoding against Appendix A bit layouts, PC-relative\n  offset computation, range checking on all immediate and offset fields,\n  source location carried to encoder for precise error reporting\n- LC3kit-ext encoding: `InsSHL`, `InsSHR`, `InsMUL`, `InsDIV`, runtime\n  enable/disable via `enabled_ext()`\n- Output: `dump(std::ostream&)` emits big-endian binary `.obj`, caller owns I/O\n- `Asm` orchestrates the full pipeline with per-stage error collection\n\n### Project\n\n- Header-only library, C++20\n- CMake install support with `lc3kit::lc3kit` target and `find_package(lc3kit)` support\n- Include via `#include <lc3kit/vm>` and `#include <lc3kit/sm>`\n\n### Notes\n\n- `lc3kit::vm` and `lc3kit::asm` share some type names (`error_type`, `err_str`, etc.) - always use the full namespace qualifier (`vm::error_type`, `asm::error_type`) to avoid ambiguity when both headers are included.\n\n## [1.0.1] - Fix bugs and Added docs\n\n- Assembler: Fixed directives not being treated as case-insensitive.\n- VM       : Execution origin now can change if running in STEP mode.\n- Docs     : Added LC3kit-ext encoding documentation and live HTML documentation.\n\n## [1.0.2] - Updated docs to `docxx`\n\n- Docs : Added `docxx` generated HTML documentation to the project.\n- Docs : Added more detailed documentation.\n- Docs : Added docs for build process.\n- Code : Hidden some internal functions from the public API.\n"
+      },
+      {
+        "label": "Licence",
+        "url": "./LICENCE.md",
+        "type": "markdown",
+        "icon": "balance-scale",
+        "content": "MIT License\n\nCopyright (c) 2026\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+      },
+      {
+        "label": "Source Code",
+        "url": "https://github.com/0xbad4/lc3kit",
+        "icon": "code",
+        "type": "external"
+      },
+      {
+        "label": "Developer",
+        "url": "https://github.com/0xbad4",
+        "icon": "user",
+        "type": "external"
+      }
+    ],
+    "title": "LC3-kit | API Reference",
+    "icon": "img/lc3kit.png",
+    "favicon": "img/lc3kit.png",
+    "hjs_code_theme": "atom-one-dark"
+  },
+  "overview": [
+    {
+      "type": "markdown",
+      "text": "# LC3-kit (v1.0.1)"
+    },
+    {
+      "type": "markdown",
+      "text": "A LC-3 virtual machine and assembler.\n\n## Components\n\n- **VM**: LC-3 virtual machine with hook-based debugger API and the `LC3kit-ext` instruction set extension.\n- **Assembler**: two-pass LC-3 assembler producing standard `.obj` files.\n\n## Installation\n\n### Prerequisites\n\n- CMake 3.28 or higher\n- C compiler (GCC/Clang on Linux, MSVC on Windows)\n\n### Build and Install\n\nLinux:**\n\n```bash\nmkdir build\ncd build\ncmake ..\ncmake --build .\ncmake --install .\n```\n\nWindows:**\n\n```bash\nmkdir build\ncd build\ncmake ..\ncmake --build . --config Release\ncmake --install . --config Release\n```\n\nThe library will be installed to the system CMake package directory and can be used in other projects via `find_package(lc3kit)`.\n\n## Documentation\n\n- [LC3kit-ext Encoding](./EXTENSION.md) - LC3kit-ext instruction encoding reference.\n- [Live Documentation](https://0xbad4.github.io/lc3kit/) - HTML documentation hosted on GitHub Pages."
+    }
+  ],
+  "modules": [
+    {
+      "name": "lc3kit",
+      "type": "namespace",
+      "content": [
+        {
+          "name": "lasm",
+          "type": "namespace",
+          "icon": "memory",
+          "content": [
+            {
+              "type": "class",
+              "name": "Asm",
+              "brief": "High-level assembler pipeline for tokenization, parsing, symbol resolution, and instruction encoding.",
+              "content": [
+                {
+                  "type": "method",
+                  "name": "set_ext_enabled",
+                  "access": "public",
+                  "brief": "Enable or disable the lc3kit extension instruction set.",
+                  "params": [
+                    {
+                      "name": "enabled",
+                      "type": "bool",
+                      "description": "`true` to enable extension opcodes, `false` otherwise."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 52,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L52"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_ext_enabled",
+                  "access": "public",
+                  "brief": "Check whether extension instructions are enabled.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when the extension instruction set is active."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 64,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L64"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "ok",
+                  "access": "public",
+                  "brief": "Check whether the assembler is in a clean state.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when no diagnostics have been recorded."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 73,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L73"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "errors",
+                  "access": "public",
+                  "brief": "Get the accumulated assembler diagnostics.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const errors_t&",
+                    "description": "Read-only list of all errors collected during the pipeline."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 80,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L80"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "sym_table",
+                  "access": "public",
+                  "brief": "Get the symbol table generated by the assembler.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const sym_table_t&",
+                    "description": "Current symbol table mapping labels to addresses."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 87,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L87"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "sections",
+                  "access": "public",
+                  "brief": "Get the successfully encoded program sections.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const sections_t&",
+                    "description": "Encoded assembly sections produced by the encoder."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 94,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L94"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "line_addresses",
+                  "access": "public",
+                  "brief": "Map each source line to the memory address it assembles to.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "lines_addrs_t",
+                    "description": "A map from one-based source line numbers to assembled addresses."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 101,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L101"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "assemble",
+                  "access": "public",
+                  "brief": "Assemble source code from an in-memory source buffer.",
+                  "description": "Runs the lexer, parser, symbol generation, and encoding passes in order.",
+                  "params": [
+                    {
+                      "name": "src",
+                      "type": "source_code",
+                      "description": "Source text and metadata to assemble."
+                    }
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when the full pipeline succeeded, `false` otherwise."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 123,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L123"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "assemble",
+                  "access": "public",
+                  "brief": "Assemble source code read from an input stream.",
+                  "params": [
+                    {
+                      "name": "stream",
+                      "type": "std::istream&",
+                      "description": "Input stream containing assembly source."
+                    }
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when assembly succeeds, `false` when any stage reports an error."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 166,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L166"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "dump",
+                  "access": "public",
+                  "brief": "Dump assembled sections as a big-endian binary stream.",
+                  "flags": [
+                    "const"
+                  ],
+                  "params": [
+                    {
+                      "name": "out",
+                      "type": "std::ostream&",
+                      "description": "Output stream receiving the encoded binary image."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/asm.h",
+                    "line": 179,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L179"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/asm.h",
+                "line": 20,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L20"
+              }
+            },
+            {
+              "type": "class",
+              "name": "BaseObj",
+              "brief": "Base state and error-tracking object shared by assembler components.",
+              "content": [
+                {
+                  "type": "constructor",
+                  "name": "BaseObj",
+                  "access": "public",
+                  "brief": "Construct a base assembler object.",
+                  "params": [
+                    {
+                      "name": "en_ext",
+                      "type": "bool",
+                      "default": "false",
+                      "description": "`true` to enable extension opcodes by default."
+                    }
+                  ],
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/bob.h",
+                    "line": 62,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/bob.h#L62"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_ext_enabled",
+                  "access": "public",
+                  "brief": "Enable or disable the extension instruction set.",
+                  "params": [
+                    {
+                      "name": "en",
+                      "type": "bool",
+                      "default": "true",
+                      "description": "`true` to enable extension opcodes, `false` to disable them."
+                    }
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when the setting changed successfully, otherwise `false` if the object is currently running."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/bob.h",
+                    "line": 74,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/bob.h#L74"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_ext_enabled",
+                  "access": "public",
+                  "brief": "Check whether extension opcodes are enabled.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when extension instructions are enabled."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/bob.h",
+                    "line": 87,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/bob.h#L87"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "errors",
+                  "access": "public",
+                  "brief": "Access the collected diagnostics.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const errors_t&",
+                    "description": "Read-only list of recorded errors."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/bob.h",
+                    "line": 96,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/bob.h#L96"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "ok",
+                  "access": "public",
+                  "brief": "Check whether no assembler errors were recorded.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when the object is error-free."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/bob.h",
+                    "line": 105,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/bob.h#L105"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_running",
+                  "access": "public",
+                  "brief": "Check whether the object is currently active.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when the object is running and has no recorded errors."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/bob.h",
+                    "line": 114,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/bob.h#L114"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/bob.h",
+                "line": 17,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/bob.h#L17"
+              }
+            },
+            {
+              "type": "class",
+              "name": "Encoder",
+              "brief": "Encodes resolved instructions into machine words for each .ORIG section.",
+              "bases": [
+                {
+                  "name": "Visitor",
+                  "access": "public"
+                },
+                {
+                  "name": "BaseObj",
+                  "access": "public"
+                }
+              ],
+              "parent": [
+                {
+                  "name": "Visitor",
+                  "access": "public"
+                },
+                {
+                  "name": "BaseObj",
+                  "access": "public"
+                }
+              ],
+              "content": [
+                {
+                  "type": "method",
+                  "name": "encode",
+                  "access": "public",
+                  "brief": "Encode a list of resolved instructions into machine words.",
+                  "params": [
+                    {
+                      "name": "instructions",
+                      "type": "const instructions&",
+                      "description": "List of resolved instructions to encode."
+                    },
+                    {
+                      "name": "sym_table",
+                      "type": "const sym_table_t&",
+                      "description": "Symbol table mapping labels to addresses."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/encoder.h",
+                    "line": 162,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/encoder.h#L162"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "sections",
+                  "access": "public",
+                  "brief": "Returns the encoded sections of machine words.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const sections_t&",
+                    "description": "A vector of sections, each containing an origin address and a list of emitted words."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/encoder.h",
+                    "line": 188,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/encoder.h#L188"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/encoder.h",
+                "line": 20,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/encoder.h#L20"
+              }
+            },
+            {
+              "type": "struct",
+              "name": "Error",
+              "content": [
+                {
+                  "type": "field",
+                  "name": "type",
+                  "access": "public",
+                  "field_type": "error_type",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/error.h",
+                    "line": 119,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/error.h#L119"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "pos",
+                  "access": "public",
+                  "field_type": "tpos",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/error.h",
+                    "line": 120,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/error.h#L120"
+                  }
+                },
+                {
+                  "type": "constructor",
+                  "name": "Error",
+                  "access": "public",
+                  "params": [
+                    {
+                      "name": "err",
+                      "type": "error_type",
+                      "default": "error_type::NO_ERROR"
+                    },
+                    {
+                      "name": "p",
+                      "type": "tpos",
+                      "default": "{0, 0}"
+                    }
+                  ],
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/error.h",
+                    "line": 122,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/error.h#L122"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/error.h",
+                "line": 118,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/error.h#L118"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "error",
+              "underlying": "struct Error",
+              "style": "typedef",
+              "source": {
+                "file": "include/lc3kit/lc3asm/error.h",
+                "line": 118,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/error.h#L118"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "error_type",
+              "brief": "Error conditions that can occur during lexing, parsing, or encoding.",
+              "scoped": true,
+              "values": [
+                {
+                  "name": "NO_ERROR"
+                },
+                {
+                  "name": "UNTERMINATED_STRING"
+                },
+                {
+                  "name": "UNEXPECTED_CHAR"
+                },
+                {
+                  "name": "EXPECTED_DIRECTIVE"
+                },
+                {
+                  "name": "INVALID_DIRECTIVE"
+                },
+                {
+                  "name": "INVALID_SOURCE_CODE"
+                },
+                {
+                  "name": "INVALID_ESCAPE_CHAR"
+                },
+                {
+                  "name": "INVALID_NUMBER"
+                },
+                {
+                  "name": "NUMBER_OUT_OF_RANGE"
+                },
+                {
+                  "name": "INVALID_SIGN"
+                },
+                {
+                  "name": "EXPECTED_REGISTER"
+                },
+                {
+                  "name": "INVALID_REGISTER_FORMAT"
+                },
+                {
+                  "name": "REGISTER_OUT_OF_RANGE"
+                },
+                {
+                  "name": "EXPECTED_EOL"
+                },
+                {
+                  "name": "EXPECTED_COMMA"
+                },
+                {
+                  "name": "EXPECTED_NUMBER"
+                },
+                {
+                  "name": "EXPECTED_STRING"
+                },
+                {
+                  "name": "UNEXPECTED_TOKEN"
+                },
+                {
+                  "name": "EXPECTED_LABEL_OR_NUMBER"
+                },
+                {
+                  "name": "UNDEFINED_LABEL"
+                },
+                {
+                  "name": "NO_ORIG"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/error.h",
+                "line": 10,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/error.h#L10"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "errors_t",
+              "underlying": "std::vector<Error>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3asm/error.h",
+                "line": 125,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/error.h#L125"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "instruction_ptr",
+              "underlying": "std::unique_ptr<detail::Instruction>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3asm/expr.h",
+                "line": 430,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/expr.h#L430"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "instructions",
+              "underlying": "std::vector<instruction_ptr>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3asm/expr.h",
+                "line": 431,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/expr.h#L431"
+              }
+            },
+            {
+              "type": "class",
+              "name": "Lexer",
+              "brief": "Tokenizes assembly source into a stream of typed tokens and diagnostics.",
+              "bases": [
+                {
+                  "name": "BaseObj",
+                  "access": "public"
+                }
+              ],
+              "parent": [
+                {
+                  "name": "BaseObj",
+                  "access": "public"
+                }
+              ],
+              "content": [
+                {
+                  "type": "method",
+                  "name": "tokenize",
+                  "access": "public",
+                  "brief": "Tokenize assembly source and populate the token stream.",
+                  "params": [
+                    {
+                      "name": "src",
+                      "type": "source_code",
+                      "description": "Source text to tokenize."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/lexer.h",
+                    "line": 337,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L337"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "tokens",
+                  "access": "public",
+                  "brief": "Access the emitted token stream.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const tokens_t&",
+                    "description": "Read-only list of tokens generated by the lexer."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/lexer.h",
+                    "line": 367,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L367"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "source",
+                  "access": "public",
+                  "brief": "Access the original source data used for tokenization.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const source_code&",
+                    "description": "Read-only source buffer attached to the lexer."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/lexer.h",
+                    "line": 376,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L376"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/lexer.h",
+                "line": 33,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L33"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "lines_addrs_t",
+              "brief": "Maps source line numbers to assembled memory addresses.",
+              "underlying": "std::unordered_map<uint, std_word_t>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3asm/asm.h",
+                "line": 14,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/asm.h#L14"
+              }
+            },
+            {
+              "type": "class",
+              "name": "Parser",
+              "brief": "Parses a token stream into instruction nodes and directive objects.",
+              "bases": [
+                {
+                  "name": "BaseObj",
+                  "access": "public"
+                }
+              ],
+              "parent": [
+                {
+                  "name": "BaseObj",
+                  "access": "public"
+                }
+              ],
+              "content": [
+                {
+                  "type": "method",
+                  "name": "parse",
+                  "access": "public",
+                  "brief": "Parse a token stream into instruction nodes and directive objects.",
+                  "params": [
+                    {
+                      "name": "tokens",
+                      "type": "const tokens_t&",
+                      "description": "Token stream to parse."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/parser.h",
+                    "line": 624,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/parser.h#L624"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "get_instructions",
+                  "access": "public",
+                  "brief": "Access the parsed instruction nodes and directive objects.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const instructions&",
+                    "description": "Read-only list of instructions and directives generated by the parser."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/parser.h",
+                    "line": 656,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/parser.h#L656"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/parser.h",
+                "line": 10,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/parser.h#L10"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "registers",
+              "brief": "General-purpose register identifiers used by the assembler.",
+              "scoped": true,
+              "values": [
+                {
+                  "name": "R0",
+                  "value": "0"
+                },
+                {
+                  "name": "R1"
+                },
+                {
+                  "name": "R2"
+                },
+                {
+                  "name": "R3"
+                },
+                {
+                  "name": "R4"
+                },
+                {
+                  "name": "R5"
+                },
+                {
+                  "name": "R6"
+                },
+                {
+                  "name": "R7"
+                },
+                {
+                  "name": "NOR"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/enums.h",
+                "line": 53,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/enums.h#L53"
+              }
+            },
+            {
+              "type": "struct",
+              "name": "section",
+              "brief": "One assembled section: its origin address and emitted words.",
+              "content": [
+                {
+                  "type": "field",
+                  "name": "origin",
+                  "access": "public",
+                  "field_type": "std_word_t",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/encoder.h",
+                    "line": 10,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/encoder.h#L10"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "words",
+                  "access": "public",
+                  "field_type": "std::vector<std_word_t>",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/encoder.h",
+                    "line": 10,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/encoder.h#L10"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/encoder.h",
+                "line": 10,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/encoder.h#L10"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "sections_t",
+              "brief": "Container of assembled sections produced by the pass-2 encoder.",
+              "underlying": "std::vector<section>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3asm/encoder.h",
+                "line": 15,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/encoder.h#L15"
+              }
+            },
+            {
+              "type": "struct",
+              "name": "source_code",
+              "brief": "Raw source buffer and its byte length.",
+              "content": [
+                {
+                  "type": "field",
+                  "name": "data",
+                  "access": "public",
+                  "field_type": "const char*",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/ds.h",
+                    "line": 24,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L24"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "size",
+                  "access": "public",
+                  "field_type": "uint32_t",
+                  "value": "0",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/ds.h",
+                    "line": 25,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L25"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/ds.h",
+                "line": 23,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L23"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "sym_table_t",
+              "brief": "Maps labels to their assigned memory addresses.",
+              "underlying": "std::unordered_map<str_t, std_word_t>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3asm/symtab.h",
+                "line": 10,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/symtab.h#L10"
+              }
+            },
+            {
+              "type": "class",
+              "name": "SymTableGenerator",
+              "brief": "Pass-1 assembler stage that assigns addresses and resolves labels.",
+              "bases": [
+                {
+                  "name": "Visitor",
+                  "access": "public"
+                },
+                {
+                  "name": "BaseObj",
+                  "access": "public"
+                }
+              ],
+              "parent": [
+                {
+                  "name": "Visitor",
+                  "access": "public"
+                },
+                {
+                  "name": "BaseObj",
+                  "access": "public"
+                }
+              ],
+              "content": [
+                {
+                  "type": "constructor",
+                  "name": "SymTableGenerator",
+                  "access": "public",
+                  "flags": [
+                    "default"
+                  ],
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/symtab.h",
+                    "line": 37,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/symtab.h#L37"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "get",
+                  "access": "public",
+                  "brief": "Returns the generated symbol table.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "const sym_table_t&"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/symtab.h",
+                    "line": 42,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/symtab.h#L42"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "find",
+                  "access": "public",
+                  "brief": "Returns the address of a label, or reports an error if not found.",
+                  "params": [
+                    {
+                      "name": "lbl",
+                      "type": "const str_t&"
+                    }
+                  ],
+                  "return": {
+                    "type": "std_word_t"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/symtab.h",
+                    "line": 47,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/symtab.h#L47"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "operator[]",
+                  "access": "public",
+                  "brief": "Returns the address of a label, or 0 if not found.",
+                  "params": [
+                    {
+                      "name": "lbl",
+                      "type": "const str_t&"
+                    }
+                  ],
+                  "return": {
+                    "type": "std_word_t"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/symtab.h",
+                    "line": 60,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/symtab.h#L60"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "generate",
+                  "access": "public",
+                  "brief": "Generate a symbol table from a list of parsed instructions.",
+                  "params": [
+                    {
+                      "name": "instructions",
+                      "type": "const instructions&"
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/symtab.h",
+                    "line": 67,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/symtab.h#L67"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/symtab.h",
+                "line": 15,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/symtab.h#L15"
+              }
+            },
+            {
+              "type": "struct",
+              "name": "token",
+              "brief": "A single token emitted by the lexer.",
+              "content": [
+                {
+                  "type": "field",
+                  "name": "type",
+                  "access": "public",
+                  "field_type": "const token_type",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/lexer.h",
+                    "line": 11,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L11"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "value",
+                  "access": "public",
+                  "field_type": "const str_t",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/lexer.h",
+                    "line": 12,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L12"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "pos",
+                  "access": "public",
+                  "field_type": "const tpos",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/lexer.h",
+                    "line": 13,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L13"
+                  }
+                },
+                {
+                  "type": "constructor",
+                  "name": "token",
+                  "access": "public",
+                  "brief": "Construct a token with a type, source position, and lexeme value.",
+                  "params": [
+                    {
+                      "name": "tt",
+                      "type": "token_type",
+                      "description": "Token kind."
+                    },
+                    {
+                      "name": "tp",
+                      "type": "tpos",
+                      "description": "Source position where the token was found."
+                    },
+                    {
+                      "name": "tv",
+                      "type": "str_t",
+                      "default": "\"\"",
+                      "description": "Lexeme text associated with the token."
+                    }
+                  ],
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/lexer.h",
+                    "line": 22,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L22"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/lexer.h",
+                "line": 10,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L10"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "token_type",
+              "brief": "Token kinds produced by the lexer and consumed by the parser.",
+              "scoped": true,
+              "values": [
+                {
+                  "name": "COMMA"
+                },
+                {
+                  "name": "IDENTIFIER"
+                },
+                {
+                  "name": "STRING"
+                },
+                {
+                  "name": "HEX_NUMBER"
+                },
+                {
+                  "name": "DEC_NUMBER"
+                },
+                {
+                  "name": "ADD"
+                },
+                {
+                  "name": "AND"
+                },
+                {
+                  "name": "NOT"
+                },
+                {
+                  "name": "BR"
+                },
+                {
+                  "name": "BRN"
+                },
+                {
+                  "name": "BRZ"
+                },
+                {
+                  "name": "BRP"
+                },
+                {
+                  "name": "BRNZ"
+                },
+                {
+                  "name": "BRNP"
+                },
+                {
+                  "name": "BRZP"
+                },
+                {
+                  "name": "BRNZP"
+                },
+                {
+                  "name": "LD"
+                },
+                {
+                  "name": "LDI"
+                },
+                {
+                  "name": "LDR"
+                },
+                {
+                  "name": "LEA"
+                },
+                {
+                  "name": "ST"
+                },
+                {
+                  "name": "STI"
+                },
+                {
+                  "name": "STR"
+                },
+                {
+                  "name": "JMP"
+                },
+                {
+                  "name": "JSR"
+                },
+                {
+                  "name": "JSRR"
+                },
+                {
+                  "name": "RET"
+                },
+                {
+                  "name": "RTI"
+                },
+                {
+                  "name": "TRAP"
+                },
+                {
+                  "name": "GETC"
+                },
+                {
+                  "name": "OUT"
+                },
+                {
+                  "name": "PUTS"
+                },
+                {
+                  "name": "IN"
+                },
+                {
+                  "name": "PUTSP"
+                },
+                {
+                  "name": "HALT"
+                },
+                {
+                  "name": "SHL"
+                },
+                {
+                  "name": "SHR"
+                },
+                {
+                  "name": "MUL"
+                },
+                {
+                  "name": "DIV"
+                },
+                {
+                  "name": "ORIG"
+                },
+                {
+                  "name": "END"
+                },
+                {
+                  "name": "FILL"
+                },
+                {
+                  "name": "BLKW"
+                },
+                {
+                  "name": "STRINGZ"
+                },
+                {
+                  "name": "EOL"
+                },
+                {
+                  "name": "EOF_"
+                },
+                {
+                  "name": "INVALID"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/enums.h",
+                "line": 11,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/enums.h#L11"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "tokens_t",
+              "brief": "Vector of lexer output tokens.",
+              "underlying": "std::vector<token>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3asm/lexer.h",
+                "line": 28,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/lexer.h#L28"
+              }
+            },
+            {
+              "type": "struct",
+              "name": "tpos",
+              "brief": "Source position in a text file, in line and column form.",
+              "content": [
+                {
+                  "type": "field",
+                  "name": "line",
+                  "access": "public",
+                  "field_type": "uint32_t",
+                  "value": "0",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/ds.h",
+                    "line": 16,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L16"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "col",
+                  "access": "public",
+                  "field_type": "uint32_t",
+                  "value": "0",
+                  "source": {
+                    "file": "include/lc3kit/lc3asm/ds.h",
+                    "line": 17,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L17"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3asm/ds.h",
+                "line": 15,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L15"
+              }
+            },
+            {
+              "type": "function",
+              "name": "err_str",
+              "brief": "Convert an assembler error code to a readable message.",
+              "flags": [
+                "inline",
+                "constexpr"
+              ],
+              "params": [
+                {
+                  "name": "err",
+                  "type": "error_type",
+                  "description": "Error code to describe."
+                }
+              ],
+              "return": {
+                "type": "const char*",
+                "description": "Human-readable error text."
+              },
+              "source": {
+                "file": "include/lc3kit/lc3asm/error.h",
+                "line": 46,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/error.h#L46"
+              }
+            },
+            {
+              "type": "variable",
+              "name": "BR_MASKS",
+              "flags": [
+                "inline"
+              ],
+              "field_type": "const std::unordered_map<std::string, uint8_t>",
+              "value": "{{\"BR\", 0b111}, {\"BRNZP\", 0b111}, {\"BRN\", 0b100}, {\"BRZ\", 0b010}, {\"BRP\", 0b001}, {\"BRNZ\", 0b110}, {\"BRNP\", 0b101}, {\"BRZP\", 0b011}, {\"JNZP\", 0b111}, {\"JN\", 0b100}, {\"JZ\", 0b010}, {\"JP\", 0b001}, {\"JNZ\", 0b110}, {\"JNP\", 0b101}, {\"JZP\", 0b011",
+              "source": {
+                "file": "include/lc3kit/lc3asm/ds.h",
+                "line": 86,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L86"
+              }
+            },
+            {
+              "type": "variable",
+              "name": "DIRECTIVES",
+              "flags": [
+                "inline"
+              ],
+              "field_type": "const std::unordered_map<str_t, token_type>",
+              "value": "{{\"ORIG\", token_type::ORIG}, {\"END\", token_type::END}, {\"FILL\", token_type::FILL}, {\"BLKW\", token_type::BLKW}, {\"STRINGZ\", token_type::STRINGZ}}",
+              "source": {
+                "file": "include/lc3kit/lc3asm/ds.h",
+                "line": 76,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L76"
+              }
+            },
+            {
+              "type": "variable",
+              "name": "END_OF_LINE",
+              "brief": "End-of-line marker used by the lexer and parser.",
+              "flags": [
+                "constexpr"
+              ],
+              "field_type": "const char",
+              "value": "'\\n'",
+              "source": {
+                "file": "include/lc3kit/lc3asm/ds.h",
+                "line": 10,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L10"
+              }
+            },
+            {
+              "type": "variable",
+              "name": "MNEMONICS",
+              "brief": "Map of standard LC-3 mnemonic names to token identifiers.",
+              "flags": [
+                "inline"
+              ],
+              "field_type": "const std::unordered_map<str_t, token_type>",
+              "value": "{{\"ADD\", token_type::ADD}, {\"AND\", token_type::AND}, {\"NOT\", token_type::NOT}, {\"BR\", token_type::BR}, {\"BRN\", token_type::BRN}, {\"BRZ\", token_type::BRZ}, {\"BRP\", token_type::BRP}, {\"BRNZ\", token_type::BRNZ}, {\"BRNP\", token_type::BRNP}, {\"B",
+              "source": {
+                "file": "include/lc3kit/lc3asm/ds.h",
+                "line": 31,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L31"
+              }
+            },
+            {
+              "type": "variable",
+              "name": "MNEMONICS_EXT",
+              "flags": [
+                "inline"
+              ],
+              "field_type": "const std::unordered_map<str_t, token_type>",
+              "value": "{{\"SHL\", token_type::SHL}, {\"SHR\", token_type::SHR}, {\"MUL\", token_type::MUL}, {\"DIV\", token_type::DIV}}",
+              "source": {
+                "file": "include/lc3kit/lc3asm/ds.h",
+                "line": 69,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L69"
+              }
+            },
+            {
+              "type": "variable",
+              "name": "TRAP_VECTORS",
+              "flags": [
+                "inline"
+              ],
+              "field_type": "const std::unordered_map<std::string, std_word_t>",
+              "value": "{{\"GETC\", 0x20}, {\"OUT\", 0x21}, {\"PUTS\", 0x22}, {\"IN\", 0x23}, {\"PUTSP\", 0x24}, {\"HALT\", 0x25}, }",
+              "source": {
+                "file": "include/lc3kit/lc3asm/ds.h",
+                "line": 107,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3asm/ds.h#L107"
+              }
+            }
+          ]
+        },
+        {
+          "name": "vm",
+          "type": "namespace",
+          "icon": "microchip",
+          "content": [
+            {
+              "type": "enum",
+              "name": "boot_mode",
+              "brief": "Controls how the VM handles trap and interrupt service routines.",
+              "scoped": true,
+              "underlying": "uint8_t",
+              "values": [
+                {
+                  "name": "BUILTIN_OS",
+                  "description": "use C++ trap/interrupt implementations (default)"
+                },
+                {
+                  "name": "CUSTOM_OS",
+                  "description": "hands-off: user loads their own OS, VM does nothing"
+                }
+              ],
+              "markdown": [
+                {
+                  "type": "markdown",
+                  "content": "- `BUILTIN_OS`:\n  Trap and interrupt service routines are implemented in C++.\n  Memory and registers are still updated through the normal bus\n  (mem_write, register_write, ssp_push/pop) so observers (debuggers,\n  memory panels, register watches) see all state changes exactly as\n  they would if a real lc3os image were running - PSR switches,\n  supervisor stack pushes/pops, R0 updates, KBSR/KBDR clears are\n  all visible in real time.\n\n- `CUSTOM_OS`:\n  The VM is a pure hardware simulator. Trap vectors, interrupt vectors,\n  and supervisor space are entirely owned by the user's loaded OS image.\n  No C++ service routines fire - all trap and interrupt handling runs\n  as real LC-3 assembly code, with the VM staying completely out of the way.",
+                  "description": ""
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/enums.h",
+                "line": 37,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/enums.h#L37"
+              }
+            },
+            {
+              "type": "class",
+              "name": "Display",
+              "brief": "Display device interface mapped to the LC-3 display memory registers.",
+              "content": [
+                {
+                  "type": "constructor",
+                  "name": "Display",
+                  "access": "public",
+                  "flags": [
+                    "default"
+                  ],
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 83,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L83"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_addr",
+                  "access": "public",
+                  "brief": "Attach the display device to its memory-mapped registers.",
+                  "params": [
+                    {
+                      "name": "dsr_ptr",
+                      "type": "std_word_t*",
+                      "description": "Pointer to the DSR register in VM memory."
+                    },
+                    {
+                      "name": "ddr_ptr",
+                      "type": "std_word_t*",
+                      "description": "Pointer to the DDR register in VM memory."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 91,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L91"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_callback",
+                  "access": "public",
+                  "brief": "Register a callback that fires on each display write.",
+                  "params": [
+                    {
+                      "name": "callback",
+                      "type": "display_callback",
+                      "description": "Function invoked after the DDR register is written."
+                    },
+                    {
+                      "name": "userdata",
+                      "type": "void*",
+                      "default": "nullptr",
+                      "description": "Optional user data pointer passed to the callback."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 103,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L103"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "on_write",
+                  "access": "public",
+                  "brief": "Trigger the display callback for the most recent DDR write.",
+                  "description": "This is normally invoked by the VM after a write to the display data register.",
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 114,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L114"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_ready",
+                  "access": "public",
+                  "brief": "Check whether the display is marked ready for output.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` when the DSR ready bit is set, otherwise `false`."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 125,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L125"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_memory_valid",
+                  "access": "public",
+                  "brief": "Check whether the display device is properly mapped.",
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` once both display register pointers have been set."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 134,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L134"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "last_char",
+                  "access": "public",
+                  "brief": "Read the most recent byte written to the display data register.",
+                  "return": {
+                    "type": "char",
+                    "description": "Character stored in the low byte of DDR."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 143,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L143"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "ready",
+                  "access": "public",
+                  "brief": "Set or clear the display ready bit.",
+                  "params": [
+                    {
+                      "name": "r",
+                      "type": "bool",
+                      "default": "true",
+                      "description": "`true` to mark the display ready; `false` to clear it."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 152,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L152"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/hw.h",
+                "line": 81,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L81"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "display_callback",
+              "brief": "Callback invoked when a display character is written.",
+              "underlying": "std::function<void(char c, void* userdata)>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3vm/hw.h",
+                "line": 15,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L15"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "error_type",
+              "brief": "errors types.",
+              "scoped": true,
+              "values": [
+                {
+                  "name": "NO_ERROR"
+                },
+                {
+                  "name": "MEM_ALLOC_FAIL"
+                },
+                {
+                  "name": "INVALID_MEMORY"
+                },
+                {
+                  "name": "INVALID_REGISTERS"
+                },
+                {
+                  "name": "ILLEGAL_OPCODE"
+                },
+                {
+                  "name": "WRONG_EXEC_POLICY"
+                },
+                {
+                  "name": "ALREADY_RUNNING"
+                },
+                {
+                  "name": "NO_HARDWARE"
+                },
+                {
+                  "name": "HW_NO_KEYBOARD"
+                },
+                {
+                  "name": "HW_NO_DISPLAY"
+                },
+                {
+                  "name": "PRIVILEGE_VIOLATION"
+                },
+                {
+                  "name": "ILLEGAL_STATE",
+                  "description": "Attempt to change VM state while running (set hardware, exec policy, ...etc)"
+                },
+                {
+                  "name": "DIVISION_BY_ZERO"
+                },
+                {
+                  "name": "OUT_OF_INSTRUCTIONS"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/enums.h",
+                "line": 45,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/enums.h#L45"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "exec_policy",
+              "brief": "Execution policy / run mode.",
+              "scoped": true,
+              "underlying": "uint8_t",
+              "values": [
+                {
+                  "name": "RUN",
+                  "description": "Normal mode"
+                },
+                {
+                  "name": "STEP",
+                  "description": "Debug mode, execute instructions one by one"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/enums.h",
+                "line": 11,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/enums.h#L11"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "ext_opcodes",
+              "brief": "Additional arithmetic and bitwise operations provided by the lc3kit extension.",
+              "scoped": true,
+              "underlying": "uint8_t",
+              "values": [
+                {
+                  "name": "SHL",
+                  "value": "0b00",
+                  "description": "shift left - dr = sr1 << (imm3 | sr2)"
+                },
+                {
+                  "name": "SHR",
+                  "value": "0b01",
+                  "description": "shift right - dr = sr1 >> (imm3 | sr2), arithmetic"
+                },
+                {
+                  "name": "MUL",
+                  "value": "0b10",
+                  "description": "multiply - dr = sr1 * (imm3 | sr2)"
+                },
+                {
+                  "name": "DIV",
+                  "value": "0b11",
+                  "description": "divide - dr = sr1 / (imm3 | sr2), halts on div-by-zero"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 91,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L91"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "interrupts",
+              "brief": "Interrupt source identifiers.",
+              "scoped": true,
+              "underlying": "uint8_t",
+              "values": [
+                {
+                  "name": "KEYBOARD",
+                  "value": "0x80",
+                  "description": "keyboard interrupt"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 82,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L82"
+              }
+            },
+            {
+              "type": "class",
+              "name": "Keyboard",
+              "brief": "Keyboard device interface mapped to the LC-3 keyboard memory registers.",
+              "content": [
+                {
+                  "type": "constructor",
+                  "name": "Keyboard",
+                  "access": "public",
+                  "flags": [
+                    "default"
+                  ],
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 22,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L22"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "emit_char",
+                  "access": "public",
+                  "brief": "Feed a character to the keyboard device.",
+                  "description": "Writes a character into the keyboard data register and sets the ready bit to signal that input is available.",
+                  "notes": [
+                    {
+                      "type": "warn",
+                      "content": "This method has no locking or atomics of its own. If you feed the keyboard from a different thread than the one calling `vm.step()` or `vm.run()`, you are responsible for the synchronization."
+                    }
+                  ],
+                  "params": [
+                    {
+                      "name": "c",
+                      "type": "char",
+                      "description": "Character to feed to the keyboard."
+                    }
+                  ],
+                  "return": {
+                    "type": "error_type",
+                    "description": "`error_type::NO_ERROR` on success; otherwise, the memory configuration error that prevented the write."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 40,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L40"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_addr",
+                  "access": "public",
+                  "brief": "Attach the keyboard device to its memory-mapped registers.",
+                  "params": [
+                    {
+                      "name": "kbsr_ptr",
+                      "type": "std_word_t*",
+                      "description": "Pointer to the KBSR register in VM memory."
+                    },
+                    {
+                      "name": "kbdr_ptr",
+                      "type": "std_word_t*",
+                      "description": "Pointer to the KBDR register in VM memory."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 57,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L57"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_memory_valid",
+                  "access": "public",
+                  "brief": "Check whether the keyboard device is properly mapped.",
+                  "return": {
+                    "type": "bool",
+                    "description": "`true` once both register pointers have been configured."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hw.h",
+                    "line": 67,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L67"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/hw.h",
+                "line": 20,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L20"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "mmio",
+              "brief": "Memory-mapped I/O register addresses.",
+              "scoped": true,
+              "underlying": "std_word_t",
+              "values": [
+                {
+                  "name": "KBSR",
+                  "value": "0xFE00",
+                  "description": "keyboard status register"
+                },
+                {
+                  "name": "KBDR",
+                  "value": "0xFE02",
+                  "description": "keyboard data register"
+                },
+                {
+                  "name": "DSR",
+                  "value": "0xFE04",
+                  "description": "display status register"
+                },
+                {
+                  "name": "DDR",
+                  "value": "0xFE06",
+                  "description": "display data register"
+                },
+                {
+                  "name": "MCR",
+                  "value": "0xFE08",
+                  "description": "machine control register"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 59,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L59"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "opcodes",
+              "brief": "LC-3 opcode set implemented by the VM.",
+              "scoped": true,
+              "underlying": "uint8_t",
+              "values": [
+                {
+                  "name": "BR",
+                  "value": "0b0000",
+                  "description": "branch"
+                },
+                {
+                  "name": "ADD",
+                  "value": "0b0001"
+                },
+                {
+                  "name": "LD",
+                  "value": "0b0010",
+                  "description": "load"
+                },
+                {
+                  "name": "ST",
+                  "value": "0b0011",
+                  "description": "store"
+                },
+                {
+                  "name": "JSR",
+                  "value": "0b0100",
+                  "description": "also JSRR depending on bit[11]"
+                },
+                {
+                  "name": "AND",
+                  "value": "0b0101"
+                },
+                {
+                  "name": "LDR",
+                  "value": "0b0110",
+                  "description": "load register (base + offset)"
+                },
+                {
+                  "name": "STR",
+                  "value": "0b0111",
+                  "description": "store register (base + offset)"
+                },
+                {
+                  "name": "RTI",
+                  "value": "0b1000",
+                  "description": "return from interrupt"
+                },
+                {
+                  "name": "NOT",
+                  "value": "0b1001"
+                },
+                {
+                  "name": "LDI",
+                  "value": "0b1010",
+                  "description": "load indirect"
+                },
+                {
+                  "name": "STI",
+                  "value": "0b1011",
+                  "description": "store indirect"
+                },
+                {
+                  "name": "JMP",
+                  "value": "0b1100",
+                  "description": "also RET when SR1 == R7"
+                },
+                {
+                  "name": "EXT",
+                  "value": "0b1101",
+                  "description": "lc3kit Extension: SHL, SHR, MUL, DIV (need to be enabled)"
+                },
+                {
+                  "name": "LEA",
+                  "value": "0b1110",
+                  "description": "load effective address"
+                },
+                {
+                  "name": "TRAP",
+                  "value": "0b1111"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 11,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L11"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "r_cond",
+              "brief": "Condition flags used by branch instructions.",
+              "scoped": true,
+              "underlying": "uint8_t",
+              "values": [
+                {
+                  "name": "POS",
+                  "value": "0b001",
+                  "description": "P - last result was positive"
+                },
+                {
+                  "name": "ZRO",
+                  "value": "0b010",
+                  "description": "Z - last result was zero"
+                },
+                {
+                  "name": "NEG",
+                  "value": "0b100",
+                  "description": "N - last result was negative"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 50,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L50"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "registers",
+              "brief": "General-purpose and special register identifiers.",
+              "scoped": true,
+              "underlying": "uint8_t",
+              "values": [
+                {
+                  "name": "R0",
+                  "value": "0b000"
+                },
+                {
+                  "name": "R1",
+                  "value": "0b001"
+                },
+                {
+                  "name": "R2",
+                  "value": "0b010"
+                },
+                {
+                  "name": "R3",
+                  "value": "0b011"
+                },
+                {
+                  "name": "R4",
+                  "value": "0b100"
+                },
+                {
+                  "name": "R5",
+                  "value": "0b101"
+                },
+                {
+                  "name": "R6",
+                  "value": "0b110",
+                  "description": "conventionally used as the stack pointer (SP)"
+                },
+                {
+                  "name": "R7",
+                  "value": "0b111",
+                  "description": "conventionally used as the link register (return address for JSR/JSRR)"
+                },
+                {
+                  "name": "PC",
+                  "description": "program counter - not part of the 3-bit GPR field"
+                },
+                {
+                  "name": "PSR",
+                  "description": "processor status register - holds N/Z/P + privilege + priority"
+                },
+                {
+                  "name": "_R_COUNT",
+                  "description": "has nothing todo with the LC-3 architecture, used internally to count the number of registers"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 33,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L33"
+              }
+            },
+            {
+              "type": "struct",
+              "name": "section_addr",
+              "brief": "Address range descriptor for a memory section.",
+              "content": [
+                {
+                  "type": "field",
+                  "name": "origin",
+                  "access": "public",
+                  "field_type": "std_word_t",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/arch.h",
+                    "line": 102,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L102"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "size",
+                  "access": "public",
+                  "field_type": "std_word_t",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/arch.h",
+                    "line": 103,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L103"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 101,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L101"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "sections_addr",
+              "brief": "Collection of memory section address descriptors.",
+              "underlying": "std::vector<section_addr>",
+              "style": "using",
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 109,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L109"
+              }
+            },
+            {
+              "type": "enum",
+              "name": "trap_vectors",
+              "brief": "Standard LC-3 trap vector dispatch values.",
+              "scoped": true,
+              "underlying": "uint8_t",
+              "values": [
+                {
+                  "name": "GETC",
+                  "value": "0x20",
+                  "description": "read a character from the keyboard, no echo"
+                },
+                {
+                  "name": "OUT",
+                  "value": "0x21",
+                  "description": "write a character to the console"
+                },
+                {
+                  "name": "PUTS",
+                  "value": "0x22",
+                  "description": "write a null-terminated string to the console"
+                },
+                {
+                  "name": "IN",
+                  "value": "0x23",
+                  "description": "prompt for input, read a character, echo it"
+                },
+                {
+                  "name": "PUTSP",
+                  "value": "0x24",
+                  "description": "write a null-terminated string of packed characters to the console"
+                },
+                {
+                  "name": "HALT",
+                  "value": "0x25",
+                  "description": "halt execution and return control to the OS"
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/arch.h",
+                "line": 70,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/arch.h#L70"
+              }
+            },
+            {
+              "type": "class",
+              "name": "VM",
+              "notes": [
+                {
+                  "type": "info",
+                  "content": "JSR / JSRR / RET. JSR and JSRR write R7 directly and do not fire the register-write hooks or touch condition codes. RET has no separate code path, it is JMP R7 by convention, so it goes through the same handling as JMP."
+                },
+                {
+                  "type": "warn",
+                  "content": "Writing to the MCR address with bit 15 cleared halts the VM immediately from inside mem_write(), regardless of whether the write came from simulated code or a direct host call."
+                },
+                {
+                  "type": "warn",
+                  "content": "GETC / IN busy-wait. Both traps spin on the keyboard ready bit inside the trap handler. If nothing external ever sets KBSR, the trap does not return."
+                },
+                {
+                  "type": "info",
+                  "content": "Only one interrupt source is modeled: interrupts::KEYBOARD. There is no general interrupt vector table beyond that."
+                }
+              ],
+              "content": [
+                {
+                  "type": "constructor",
+                  "name": "VM",
+                  "access": "public",
+                  "brief": "Construct a VM instance with execution and boot configuration.",
+                  "params": [
+                    {
+                      "name": "expo",
+                      "type": "exec_policy",
+                      "default": "exec_policy::RUN",
+                      "description": "Execution policy for the VM."
+                    },
+                    {
+                      "name": "bm",
+                      "type": "boot_mode",
+                      "default": "boot_mode::BUILTIN_OS",
+                      "description": "Boot mode used for trap/interrupt handling."
+                    }
+                  ],
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 953,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L953"
+                  }
+                },
+                {
+                  "type": "constructor",
+                  "name": "VM",
+                  "access": "public",
+                  "brief": "Delete copy constructor and assignment operator to prevent copying of VM instances.",
+                  "flags": [
+                    "deleted"
+                  ],
+                  "params": [
+                    {
+                      "name": "",
+                      "type": "const VM&"
+                    }
+                  ],
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 959,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L959"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "operator=",
+                  "access": "public",
+                  "brief": "Delete copy assignment operator to prevent copying of VM instances.",
+                  "flags": [
+                    "deleted"
+                  ],
+                  "params": [
+                    {
+                      "name": "",
+                      "type": "const VM&"
+                    }
+                  ],
+                  "return": {
+                    "type": "VM&"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 964,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L964"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_hw_keyboard",
+                  "access": "public",
+                  "brief": "Attach the keyboard hardware device to the VM.",
+                  "params": [
+                    {
+                      "name": "keyboard",
+                      "type": "vm_keyboard*",
+                      "description": "Keyboard interface instance."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 972,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L972"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_hw_display",
+                  "access": "public",
+                  "brief": "Attach the display hardware device to the VM.",
+                  "params": [
+                    {
+                      "name": "display",
+                      "type": "vm_display*",
+                      "description": "Display interface instance."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 989,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L989"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "mem_write",
+                  "access": "public",
+                  "brief": "Write a value to VM memory at the given address.",
+                  "params": [
+                    {
+                      "name": "addr",
+                      "type": "std_word_t",
+                      "description": "Address to write."
+                    },
+                    {
+                      "name": "value",
+                      "type": "std_word_t",
+                      "description": "Value to store."
+                    },
+                    {
+                      "name": "hk",
+                      "type": "bool",
+                      "default": "true",
+                      "description": "If true, dispatch any configured memory hooks."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1008,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1008"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_ext_enabled",
+                  "access": "public",
+                  "brief": "Enable or disable the lc3kit extension opcode set.",
+                  "params": [
+                    {
+                      "name": "enabled",
+                      "type": "bool",
+                      "description": "True to enable extension instructions."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1065,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1065"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_exec_policy",
+                  "access": "public",
+                  "brief": "Set the VM execution policy.",
+                  "params": [
+                    {
+                      "name": "policy",
+                      "type": "exec_policy",
+                      "description": "New execution policy value."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1078,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1078"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_boot_mode",
+                  "access": "public",
+                  "brief": "Set the boot mode used for built-in traps and interrupts.",
+                  "params": [
+                    {
+                      "name": "mode",
+                      "type": "boot_mode",
+                      "description": "Boot mode selection."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1091,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1091"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "set_origin",
+                  "access": "public",
+                  "brief": "Set the load origin and program counter.",
+                  "description": "Not allowed while VM is running unless its `STEP` mode.",
+                  "params": [
+                    {
+                      "name": "o",
+                      "type": "std_word_t",
+                      "description": "New origin address."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1106,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1106"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_running",
+                  "access": "public",
+                  "brief": "Check whether the VM is currently running.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "True if execution is active."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1121,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1121"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_debug",
+                  "access": "public",
+                  "brief": "Check whether the VM is in single-step debug mode.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "True if the execution policy is STEP."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1130,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1130"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_memory_valid",
+                  "access": "public",
+                  "brief": "Check whether memory has been allocated.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "True if memory is valid."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1139,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1139"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_registers_valid",
+                  "access": "public",
+                  "brief": "Check whether register storage has been allocated.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "True if registers are valid."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1148,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1148"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_ext_enabled",
+                  "access": "public",
+                  "brief": "Check whether extension instructions are enabled.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "True if extension opcodes are enabled."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1157,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1157"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "is_paused_on_breakpoint",
+                  "access": "public",
+                  "brief": "Check whether execution is paused because of a breakpoint.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "True if paused on breakpoint."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1166,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1166"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "get_exec_policy",
+                  "access": "public",
+                  "brief": "Get the current execution policy.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "exec_policy",
+                    "description": "Active execution policy."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1175,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1175"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "get_boot_mode",
+                  "access": "public",
+                  "brief": "Get the current boot mode.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "boot_mode",
+                    "description": "Active boot mode."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1184,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1184"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "breakpoints",
+                  "access": "public",
+                  "brief": "Get the active breakpoint set.",
+                  "return": {
+                    "type": "const breakpoints_t&",
+                    "description": "Reference to the breakpoint bitset."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1193,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1193"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "mem_read",
+                  "access": "public",
+                  "brief": "Read a word from VM memory.",
+                  "params": [
+                    {
+                      "name": "addr",
+                      "type": "std_word_t",
+                      "description": "Address to read."
+                    },
+                    {
+                      "name": "hk",
+                      "type": "bool",
+                      "default": "true",
+                      "description": "If true, dispatch any configured memory hooks."
+                    }
+                  ],
+                  "return": {
+                    "type": "std_word_t",
+                    "description": "Value stored at the address."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1204,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1204"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "reg_read",
+                  "access": "public",
+                  "brief": "Read a register value.",
+                  "params": [
+                    {
+                      "name": "reg",
+                      "type": "registers",
+                      "description": "Register identifier."
+                    }
+                  ],
+                  "return": {
+                    "type": "std_word_t",
+                    "description": "Register contents."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1229,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1229"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "pc",
+                  "access": "public",
+                  "brief": "Return the current program counter value.",
+                  "return": {
+                    "type": "std_word_t",
+                    "description": "Current PC value."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1245,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1245"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "sections",
+                  "access": "public",
+                  "brief": "Get the loaded memory sections.",
+                  "return": {
+                    "type": "const sections_addr&",
+                    "description": "Read-only list of section descriptors."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1254,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1254"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "get_last_error",
+                  "access": "public",
+                  "brief": "Return the most recent VM error code.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "error_type",
+                    "description": "Last recorded error value."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1263,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1263"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "get_used_memory_size",
+                  "access": "public",
+                  "brief": "Get the number of words currently occupied in memory.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "std_word_t",
+                    "description": "Used memory size in words."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1272,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1272"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "ok",
+                  "access": "public",
+                  "brief": "Check whether the VM is in a clean, no-error state.",
+                  "flags": [
+                    "const"
+                  ],
+                  "return": {
+                    "type": "bool",
+                    "description": "True when the last error is NO_ERROR."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1281,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1281"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "hooks",
+                  "access": "public",
+                  "brief": "Access the VM hook container.",
+                  "return": {
+                    "type": "vm_hooks&",
+                    "description": "Reference to the callback configuration object."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1291,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1291"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "clear_error",
+                  "access": "public",
+                  "brief": "Clear the current error state.",
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1298,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1298"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "reset",
+                  "access": "public",
+                  "brief": "Reset memory, registers, and execution state.",
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1305,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1305"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "add_break_point",
+                  "access": "public",
+                  "brief": "Add a breakpoint at the given address.",
+                  "params": [
+                    {
+                      "name": "addr",
+                      "type": "std_word_t",
+                      "description": "Memory address to break on."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1332,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1332"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "remove_break_point",
+                  "access": "public",
+                  "brief": "Remove a breakpoint at the given address.",
+                  "params": [
+                    {
+                      "name": "addr",
+                      "type": "std_word_t",
+                      "description": "Memory address to clear."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1341,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1341"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "load",
+                  "access": "public",
+                  "brief": "Load a program image from an input stream.",
+                  "notes": [
+                    {
+                      "type": "info",
+                      "content": "Multiple .ORIG images. This method reads exactly one image per call. A program with several .ORIG blocks needs one load() call per block, and PC is reset to the origin of whichever image was loaded last."
+                    }
+                  ],
+                  "params": [
+                    {
+                      "name": "stream",
+                      "type": "std::istream&",
+                      "description": "Binary program data to load."
+                    }
+                  ],
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1354,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1354"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "run",
+                  "access": "public",
+                  "brief": "Start execution of the loaded program.",
+                  "return": {
+                    "type": "error_type",
+                    "description": "Status code indicating execution result."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1412,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1412"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "stop",
+                  "access": "public",
+                  "brief": "Request an immediate stop to execution.",
+                  "return": {
+                    "type": "void"
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1443,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1443"
+                  }
+                },
+                {
+                  "type": "method",
+                  "name": "step",
+                  "access": "public",
+                  "brief": "Execute one instruction in debug mode.",
+                  "return": {
+                    "type": "std_word_t",
+                    "description": "Program counter value after the instruction executes."
+                  },
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1452,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1452"
+                  }
+                },
+                {
+                  "type": "destructor",
+                  "name": "~VM",
+                  "access": "public",
+                  "brief": "Destroy the VM and release any allocated memory/register storage.",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/vm.h",
+                    "line": 1488,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L1488"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/vm.h",
+                "line": 34,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/vm.h#L34"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "vm_display",
+              "brief": "Display device interface mapped to the LC-3 display memory registers.",
+              "underlying": "class Display",
+              "style": "typedef",
+              "source": {
+                "file": "include/lc3kit/lc3vm/hw.h",
+                "line": 81,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L81"
+              }
+            },
+            {
+              "type": "struct",
+              "name": "vm_hooks",
+              "brief": "Callback container for VM lifecycle, execution, memory, register, trap, interrupt, and error events.",
+              "description": "The structure is used to attach observer hooks that run before or after key VM actions without changing the core execution flow.",
+              "notes": [
+                {
+                  "type": "info",
+                  "content": "`on_breakpoint` returns a `bool`: `true` means keep running, `false` means pause. There is no separate `resume()`. To continue after a pause, call `run()` again, it detects the paused-on-breakpoint state and continues from there."
+                }
+              ],
+              "content": [
+                {
+                  "type": "field",
+                  "name": "on_start",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 26,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L26"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "on_reset",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 27,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L27"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "before_instruction",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t pc)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 32,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L32"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "after_instruction",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t pc)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 33,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L33"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "before_memory_read",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t addr)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 38,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L38"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "after_memory_read",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t addr, std_word_t value)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 41,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L41"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "before_memory_write",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t addr, std_word_t oldv, std_word_t newv)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 44,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L44"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "after_memory_write",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t addr, std_word_t value)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 47,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L47"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "before_register_write",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, registers reg, std_word_t oldv, std_word_t newv)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 53,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L53"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "after_register_write",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, registers reg, std_word_t value)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 56,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L56"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "on_breakpoint",
+                  "access": "public",
+                  "field_type": "std::function<bool(VM&, std_word_t addr)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 62,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L62"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "before_trap",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, uint8_t tvector)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 68,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L68"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "after_trap",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, uint8_t tvector)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 69,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L69"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "before_interrupt",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, interrupts intr)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 74,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L74"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "after_interrupt",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, interrupts intr)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 75,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L75"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "on_invalid_instruction",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t instr)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 81,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L81"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "on_invalid_memory_access",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t addr, bool is_write)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 84,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L84"
+                  }
+                },
+                {
+                  "type": "field",
+                  "name": "on_halt",
+                  "access": "public",
+                  "field_type": "std::function<void(VM&, std_word_t pc, bool forced)>",
+                  "value": "nullptr",
+                  "source": {
+                    "file": "include/lc3kit/lc3vm/hooks.h",
+                    "line": 87,
+                    "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L87"
+                  }
+                }
+              ],
+              "source": {
+                "file": "include/lc3kit/lc3vm/hooks.h",
+                "line": 23,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hooks.h#L23"
+              }
+            },
+            {
+              "type": "alias",
+              "name": "vm_keyboard",
+              "brief": "Keyboard device interface mapped to the LC-3 keyboard memory registers.",
+              "underlying": "class Keyboard",
+              "style": "typedef",
+              "source": {
+                "file": "include/lc3kit/lc3vm/hw.h",
+                "line": 20,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/hw.h#L20"
+              }
+            },
+            {
+              "type": "function",
+              "name": "err_str",
+              "brief": "Return a human-readable description for a VM error code.",
+              "flags": [
+                "inline",
+                "constexpr"
+              ],
+              "params": [
+                {
+                  "name": "err",
+                  "type": "error_type",
+                  "description": "Error value to translate."
+                }
+              ],
+              "return": {
+                "type": "const char*",
+                "description": "Static string describing the error condition."
+              },
+              "source": {
+                "file": "include/lc3kit/lc3vm/utils.h",
+                "line": 14,
+                "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/lc3vm/utils.h#L14"
+              }
+            }
+          ]
+        },
+        {
+          "type": "alias",
+          "name": "breakpoints_t",
+          "brief": "Bitset used to track breakpoint locations in memory.",
+          "underlying": "std::bitset<MEMORY_MAX>",
+          "style": "using",
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 42,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L42"
+          }
+        },
+        {
+          "type": "alias",
+          "name": "std_sword_t",
+          "brief": "Signed 16-bit integer type.",
+          "underlying": "int16_t",
+          "style": "using",
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 37,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L37"
+          }
+        },
+        {
+          "type": "alias",
+          "name": "std_word_t",
+          "brief": "16-bit machine word type used throughout the toolkit.",
+          "underlying": "uint16_t",
+          "style": "using",
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 27,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L27"
+          }
+        },
+        {
+          "type": "alias",
+          "name": "str_t",
+          "brief": "Standard string alias for convenience.",
+          "underlying": "std::string",
+          "style": "using",
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 32,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L32"
+          }
+        },
+        {
+          "type": "function",
+          "name": "bit",
+          "brief": "Read a single bit from a 16-bit word.",
+          "flags": [
+            "inline"
+          ],
+          "params": [
+            {
+              "name": "src",
+              "type": "std_word_t",
+              "description": "Source word."
+            },
+            {
+              "name": "loc",
+              "type": "uint8_t",
+              "description": "Bit position to read."
+            }
+          ],
+          "return": {
+            "type": "uint8_t",
+            "description": "Bit value as 0 or 1."
+          },
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 67,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L67"
+          }
+        },
+        {
+          "type": "function",
+          "name": "bits",
+          "brief": "Extract an inclusive bit field [hi:lo] and right-align it.",
+          "description": "Example: bits(0b1010110, 5, 3) returns 0b101.",
+          "flags": [
+            "inline"
+          ],
+          "params": [
+            {
+              "name": "src",
+              "type": "std_word_t",
+              "description": "Source word."
+            },
+            {
+              "name": "hi",
+              "type": "uint8_t",
+              "description": "Upper bit index, inclusive."
+            },
+            {
+              "name": "lo",
+              "type": "uint8_t",
+              "description": "Lower bit index, inclusive."
+            }
+          ],
+          "return": {
+            "type": "std_word_t",
+            "description": "Extracted field, right-aligned in a 16-bit word."
+          },
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 54,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L54"
+          }
+        },
+        {
+          "type": "function",
+          "name": "sign_extend",
+          "brief": "Sign-extend a value from the given bit width.",
+          "flags": [
+            "inline"
+          ],
+          "params": [
+            {
+              "name": "num",
+              "type": "std_word_t",
+              "description": "Value to extend."
+            },
+            {
+              "name": "bitc",
+              "type": "uint8_t",
+              "description": "Number of bits in the original value."
+            }
+          ],
+          "return": {
+            "type": "std_word_t",
+            "description": "Sign-extended 16-bit value."
+          },
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 78,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L78"
+          }
+        },
+        {
+          "type": "variable",
+          "name": "INTERRUPT_VEC_BASE_ADDR",
+          "brief": "Base address of the interrupt vector table.",
+          "flags": [
+            "constexpr"
+          ],
+          "field_type": "const uint16_t",
+          "value": "0x0100",
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 22,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L22"
+          }
+        },
+        {
+          "type": "variable",
+          "name": "MEMORY_MAX",
+          "brief": "Maximum addressable LC-3 memory location.",
+          "description": "LC-3 uses a 16-bit address space, so valid addresses range from 0x0000 to 0xFFFF.",
+          "flags": [
+            "constexpr"
+          ],
+          "field_type": "const uint16_t",
+          "value": "0xFFFF",
+          "source": {
+            "file": "include/lc3kit/common.h",
+            "line": 17,
+            "url": "https://github.com/0xbad4/lc3kit/blob/main/include/lc3kit/common.h#L17"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -170,7 +170,7 @@ namespace lc3kit::lasm {
 
             // parse a pcoffset or label - anything that can appear after a reg operand
             // in LD/ST/BR/JSR etc.  must be a number or a label.
-            ins_src2_t get_offset() {
+            detail::ins_src2_t get_offset() {
                 if (match({ token_type::HEX_NUMBER, token_type::DEC_NUMBER }))
                     return get_number();
 
@@ -199,7 +199,7 @@ namespace lc3kit::lasm {
 
                     if (match(token_type::EOL) || is_end()) {
                         // label-only line -- emit NOP as label carrier, no words emitted
-                        insert(ins_uptr(InsNOP)(label, p));
+                        insert(ins_uptr(detail::InsNOP)(label, p));
 
                         if (match(token_type::EOL)) { 
                             consume(); 
@@ -302,7 +302,7 @@ namespace lc3kit::lasm {
                 expect(token_type::COMMA, error_type::EXPECTED_COMMA); // consume source register 1 and expect comma
                 IS_OK
 
-                ins_src2_t last_operand {};
+                detail::ins_src2_t last_operand {};
 
                 if (match({token_type::HEX_NUMBER, token_type::DEC_NUMBER})) {
                     // NOTE: lc3kit-ext instructions supports only immediate value 3bit long
@@ -333,22 +333,22 @@ namespace lc3kit::lasm {
 
                 switch (opt) {
                     case token_type::AND:
-                        insert(ins_uptr(InsAND)(dest_reg, src_reg1, last_operand, label, p));
+                        insert(ins_uptr(detail::InsAND)(dest_reg, src_reg1, last_operand, label, p));
                         break;
                     case token_type::ADD:
-                        insert(ins_uptr(InsADD)(dest_reg, src_reg1, last_operand, label, p));
+                        insert(ins_uptr(detail::InsADD)(dest_reg, src_reg1, last_operand, label, p));
                         break;
                     case token_type::SHL:
-                        insert(ins_uptr(InsSHL)(dest_reg, src_reg1, last_operand, label, p));
+                        insert(ins_uptr(detail::InsSHL)(dest_reg, src_reg1, last_operand, label, p));
                         break;
                     case token_type::SHR:
-                        insert(ins_uptr(InsSHR)(dest_reg, src_reg1, last_operand, label, p));
+                        insert(ins_uptr(detail::InsSHR)(dest_reg, src_reg1, last_operand, label, p));
                         break;
                     case token_type::MUL:
-                        insert(ins_uptr(InsMUL)(dest_reg, src_reg1, last_operand, label, p));
+                        insert(ins_uptr(detail::InsMUL)(dest_reg, src_reg1, last_operand, label, p));
                         break;
                     case token_type::DIV:
-                        insert(ins_uptr(InsDIV)(dest_reg, src_reg1, last_operand, label, p));
+                        insert(ins_uptr(detail::InsDIV)(dest_reg, src_reg1, last_operand, label, p));
                         break;
                 }
 
@@ -371,7 +371,7 @@ namespace lc3kit::lasm {
 
                 consume();  // SR
 
-                insert(ins_uptr(InsNOT)(dr, sr, label, p));
+                insert(ins_uptr(detail::InsNOT)(dr, sr, label, p));
             }
 
             void parse_branch(str_t label) {
@@ -381,12 +381,12 @@ namespace lc3kit::lasm {
 
                 consume();  // mnemonic
 
-                ins_src2_t offset = get_offset();
+                detail::ins_src2_t offset = get_offset();
                 IS_OK
 
                 consume();  // offset / label
 
-                insert(ins_uptr(InsBR)(mask, offset, label, p));
+                insert(ins_uptr(detail::InsBR)(mask, offset, label, p));
             }
 
             // LD, LDI, LEA, ST, STI
@@ -403,22 +403,22 @@ namespace lc3kit::lasm {
                 expect(token_type::COMMA, error_type::EXPECTED_COMMA);
                 IS_OK
 
-                ins_src2_t offset = get_offset();
+                detail::ins_src2_t offset = get_offset();
                 IS_OK
 
                 consume();  // offset
 
                 switch (opt) {
                     case token_type::LD:
-                        insert(ins_uptr(InsLD)(reg, offset, label, p));  break;
+                        insert(ins_uptr(detail::InsLD)(reg, offset, label, p));  break;
                     case token_type::LDI:
-                        insert(ins_uptr(InsLDI)(reg, offset, label, p)); break;
+                        insert(ins_uptr(detail::InsLDI)(reg, offset, label, p)); break;
                     case token_type::LEA:
-                        insert(ins_uptr(InsLEA)(reg, offset, label, p)); break;
+                        insert(ins_uptr(detail::InsLEA)(reg, offset, label, p)); break;
                     case token_type::ST:
-                        insert(ins_uptr(InsST)(reg, offset, label, p));  break;
+                        insert(ins_uptr(detail::InsST)(reg, offset, label, p));  break;
                     case token_type::STI:
-                        insert(ins_uptr(InsSTI)(reg, offset, label, p)); break;
+                        insert(ins_uptr(detail::InsSTI)(reg, offset, label, p)); break;
                     default: break;
                 }
             }
@@ -442,15 +442,15 @@ namespace lc3kit::lasm {
                 expect(token_type::COMMA, error_type::EXPECTED_COMMA);
                 IS_OK
 
-                ins_src2_t offset = get_offset();
+                detail::ins_src2_t offset = get_offset();
                 IS_OK
 
                 consume();  // offset
 
                 if (opt == token_type::LDR)
-                    insert(ins_uptr(InsLDR)(reg, base, offset, label, p));
+                    insert(ins_uptr(detail::InsLDR)(reg, base, offset, label, p));
                 else
-                    insert(ins_uptr(InsSTR)(reg, base, offset, label, p));
+                    insert(ins_uptr(detail::InsSTR)(reg, base, offset, label, p));
             }
 
             // JMP
@@ -464,7 +464,7 @@ namespace lc3kit::lasm {
 
                 consume();  // BaseR
 
-                insert(ins_uptr(InsJMP)(base, label, p));
+                insert(ins_uptr(detail::InsJMP)(base, label, p));
             }
 
             // JSR
@@ -474,12 +474,12 @@ namespace lc3kit::lasm {
                 
                 consume();  // mnemonic
 
-                ins_src2_t offset = get_offset();
+                detail::ins_src2_t offset = get_offset();
                 IS_OK
 
                 consume();  // offset
 
-                insert(ins_uptr(InsJSR)(offset, label, p));
+                insert(ins_uptr(detail::InsJSR)(offset, label, p));
             }
 
             // JSRR
@@ -494,7 +494,7 @@ namespace lc3kit::lasm {
 
                 consume();  // BaseR
 
-                insert(ins_uptr(InsJSRR)(base, label, p));
+                insert(ins_uptr(detail::InsJSRR)(base, label, p));
             }
 
             // RET
@@ -503,7 +503,7 @@ namespace lc3kit::lasm {
                 tpos p = peek().pos;
                 
                 consume();  // mnemonic
-                insert(ins_uptr(InsRET)(label, p));
+                insert(ins_uptr(detail::InsRET)(label, p));
             }
 
             // RTI
@@ -512,7 +512,7 @@ namespace lc3kit::lasm {
                 tpos p = peek().pos;
                 
                 consume();  // mnemonic
-                insert(ins_uptr(InsRTI)(label, p));
+                insert(ins_uptr(detail::InsRTI)(label, p));
             }
 
             // TRAP trapvector8, or alias (GETC/OUT/PUTS/IN/PUTSP/HALT)
@@ -538,7 +538,7 @@ namespace lc3kit::lasm {
                     consume();  // vector
                 }
 
-                insert(ins_uptr(InsTRAP)(vector, label, p));
+                insert(ins_uptr(detail::InsTRAP)(vector, label, p));
             }
 
             // directives
@@ -553,11 +553,11 @@ namespace lc3kit::lasm {
                     report(error_type::EXPECTED_NUMBER);
                     return;
                 }
-                ins_src2_t addr = get_number(16, false, true);
+                detail::ins_src2_t addr = get_number(16, false, true);
 
                 consume();  // address
 
-                insert(ins_uptr(InsORIG)(addr, label, p));                
+                insert(ins_uptr(detail::InsORIG)(addr, label, p));                
             }
 
             // .END - no operand
@@ -565,7 +565,7 @@ namespace lc3kit::lasm {
                 tpos p = peek().pos;
                 
                 consume();  // .END
-                insert(ins_uptr(InsEND)(label, p));
+                insert(ins_uptr(detail::InsEND)(label, p));
             }
 
             // .FILL value (number or label)
@@ -574,11 +574,11 @@ namespace lc3kit::lasm {
                 
                 consume();  // .FILL
 
-                ins_src2_t val = get_offset();  // number or label
+                detail::ins_src2_t val = get_offset();  // number or label
                 if (!ok()) return;
                 consume();  // value
 
-                insert(ins_uptr(InsFILL)(val, label, p));
+                insert(ins_uptr(detail::InsFILL)(val, label, p));
             }
 
             // .BLKW count (number only)
@@ -591,10 +591,10 @@ namespace lc3kit::lasm {
                     report(error_type::EXPECTED_NUMBER);
                     return;
                 }
-                ins_src2_t count = get_number(16, false, true);
+                detail::ins_src2_t count = get_number(16, false, true);
                 consume();  // count
 
-                insert(ins_uptr(InsBLKW)(count, label, p));
+                insert(ins_uptr(detail::InsBLKW)(count, label, p));
             }
 
             // .STRINGZ "text"
@@ -610,12 +610,17 @@ namespace lc3kit::lasm {
                 str_t text = peek().value;
                 consume();  // string
 
-                insert(ins_uptr(InsSTRINGZ)(text, label, p));
+                insert(ins_uptr(detail::InsSTRINGZ)(text, label, p));
             }
 
         public:
             using BaseObj::BaseObj;
             
+            /**
+             * @brief Parse a token stream into instruction nodes and directive objects.
+             * 
+             * @param tokens Token stream to parse.
+             */
             void parse(const tokens_t& tokens) {
                 reset();
                 m_tokens = &tokens;
@@ -643,6 +648,11 @@ namespace lc3kit::lasm {
                 stop();
             }
 
+            /**
+             * @brief Access the parsed instruction nodes and directive objects.
+             *
+             * @return Read-only list of instructions and directives generated by the parser.
+             */
             const instructions& get_instructions() const {
                 return m_inst;
             }

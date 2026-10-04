@@ -4,8 +4,8 @@ A LC-3 virtual machine and assembler.
 
 ## Components
 
-- **VM** — LC-3 virtual machine with hook-based debugger API and the `LC3kit-ext` instruction set extension.
-- **Assembler** — two-pass LC-3 assembler producing standard `.obj` files.
+- **VM**: LC-3 virtual machine with hook-based debugger API and the `LC3kit-ext` instruction set extension.
+- **Assembler**: two-pass LC-3 assembler producing standard `.obj` files.
 
 ## Installation
 
@@ -19,7 +19,8 @@ A LC-3 virtual machine and assembler.
 **Linux:**
 
 ```bash
-mkdir build && cd build
+mkdir build
+cd build
 cmake ..
 cmake --build .
 cmake --install .
@@ -39,6 +40,5 @@ The library will be installed to the system CMake package directory and can be u
 
 ## Documentation
 
-- [LC3kit-ext Encoding](docs/EXTENSION.md) - LC3kit-ext instruction encoding reference.
-- [HTML Documentation](docs/web/index.html) - Local HTML documentation.
+- [LC3kit-ext Encoding](./EXTENSION.md) - LC3kit-ext instruction encoding reference.
 - [Live Documentation](https://0xbad4.github.io/lc3kit/) - HTML documentation hosted on GitHub Pages.

@@ -13,11 +13,24 @@
 
 #include "lc3kit/common.h"
 
-namespace lc3kit::vm
-{
+namespace lc3kit::vm {
     // little shortcut
     #define self (*this)
 
+    /**
+     * @note JSR / JSRR / RET. 
+     *          JSR and JSRR write R7 directly and do not fire the register-write hooks or touch condition codes. 
+     *          RET has no separate code path, it is JMP R7 by convention, 
+     *          so it goes through the same handling as JMP.
+     * 
+     * @warning Writing to the MCR address with bit 15 cleared halts the VM immediately from inside mem_write(), 
+     *       regardless of whether the write came from simulated code or a direct host call.
+     * 
+     * @warning GETC / IN busy-wait. Both traps spin on the keyboard ready bit inside the trap handler.
+     *          If nothing external ever sets KBSR, the trap does not return.
+     * 
+     * @note  Only one interrupt source is modeled: interrupts::KEYBOARD. There is no general interrupt vector table beyond that.
+     */
     class VM {
         protected:
             exec_policy   m_expo;
@@ -940,7 +953,14 @@ namespace lc3kit::vm
             VM(exec_policy expo = exec_policy::RUN, boot_mode bm = boot_mode::BUILTIN_OS)
                 : m_expo(expo), m_boot_mode(bm) { }
 
+            /**
+             * @brief Delete copy constructor and assignment operator to prevent copying of VM instances.
+             */
             VM(const VM&)            = delete;
+
+            /**
+             * @brief Delete copy assignment operator to prevent copying of VM instances.
+             */
             VM& operator=(const VM&) = delete;
 
             // ----------------- Setters
@@ -1326,6 +1346,10 @@ namespace lc3kit::vm
              * @brief Load a program image from an input stream.
              *
              * @param stream Binary program data to load.
+             * 
+             * @note Multiple .ORIG images. This method reads exactly one image per call. 
+             *       A program with several .ORIG blocks needs one load() call per block, 
+             *       and PC is reset to the origin of whichever image was loaded last.
              */
             void load(std::istream& stream) {
                 if (!stream) {
@@ -1485,4 +1509,4 @@ namespace lc3kit::vm
     };
     
     #undef self
-} // namespace lc3kit
+} // namespace lc3kit::vm
