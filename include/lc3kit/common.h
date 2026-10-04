@@ -1,6 +1,6 @@
 #pragma once
 
-#define __LC3_KIT_LIB_VERSION "1.0.1"
+#define __LC3_KIT_LIB_VERSION "1.0.2"
 
 #include <cstdint>
 #include <string>

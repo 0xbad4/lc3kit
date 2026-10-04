@@ -1,4 +1,4 @@
-# LC3-kit (v1.0.1)
+# LC3-kit (v1.0.2)
 
 A LC-3 virtual machine and assembler.
 
